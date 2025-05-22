@@ -1,0 +1,204 @@
+# Vivian SDK
+
+Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 "Milky" 后端服务（或类似API架构的服务）进行交互。它提供了一套便捷的API客户端，用于执行各种操作，如发送消息、管理群组、处理文件，并能通过 WebSocket 接收和处理实时事件。
+
+## 特性
+
+*   **异步客户端**: 基于 `tokio` 构建，所有API调用和事件处理都是异步的。
+*   **全面的API覆盖**:
+    *   **消息处理**: 发送和接收私聊、群聊消息，获取历史消息，撤回消息，处理消息段（文本、图片、@提及、表情等）。
+    *   **群组管理**: 创建、查询、修改群信息，管理群成员（邀请、踢出、禁言、设置管理员），处理群公告、群文件等。
+    *   **好友互动**: 发送戳一戳，资料卡点赞。
+    *   **文件操作**: 上传和下载私聊及群文件，管理群文件和文件夹。
+    *   **请求处理**: 同意或拒绝好友请求、加群请求。
+    *   **系统信息**: 获取登录信息、好友列表、群列表等。
+*   **实时事件处理**: 通过 WebSocket 接收服务器推送的各类事件，如新消息、用户加入/退出群组等。
+*   **强类型接口**: 所有API请求参数和响应数据都有明确的Rust结构体定义，利用 `serde`进行序列化和反序列化，确保类型安全。
+*   **自定义日志**: 内置可定制的日志记录器 (`logger.rs`)，支持彩色输出和级别过滤。
+*   **错误处理**: 定义了详细的错误类型 `MilkyError` (`error.rs`) 和统一的 `Result<T>`，方便错误处理。
+*   **模块化设计**: 清晰的模块划分，包括 `client` (核心客户端)、`api` (各API端点实现)、`types` (数据结构定义)、`error` (错误处理) 和 `logger` (日志模块)。
+
+## 快速开始
+
+### 1. 添加依赖
+
+将 `vivian` 添加到您的 `Cargo.toml` 文件中：
+
+```toml
+[dependencies]
+vivian = "0.1" # 或者使用 git/crates.io 依赖
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+# 其他您项目可能需要的依赖
+```
+
+### 2. 初始化日志 (可选但推荐)
+
+```rust
+use vivian::logger;
+use log::LevelFilter;
+
+fn main() {
+    logger::init_logger(Some(LevelFilter::Info)); // 设置日志级别为 Info
+    // ... 您的代码
+}
+```
+
+### 3. 创建和使用 `MilkyClient`
+
+以下是一个基本的使用示例，展示了如何初始化客户端、连接事件流、处理事件以及调用API。
+
+```rust
+use std::sync::Arc;
+
+use log::{LevelFilter, error, info};
+use tokio::sync::mpsc;
+use vivian::logger; // 确保 logger 模块被正确引用
+use vivian::types::message::get_plain_text_from_segments; // 辅助函数
+use vivian::types::message::out_going::{OutgoingSegment, TextData};
+use vivian::{Event, EventKind, MilkyClient, Result};
+
+// 辅助函数，用于创建文本消息段
+fn text_segment(text: &str) -> OutgoingSegment {
+    OutgoingSegment::Text(TextData {
+        text: text.to_string(),
+    })
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    logger::init_logger(Some(LevelFilter::Info)); // 初始化日志
+
+    // 1. 创建事件通道
+    let (event_tx, mut event_rx) = mpsc::channel::<Event>(100);
+
+    // 2. 初始化 MilkyClient
+    //    请将 "http://127.0.0.1:3000" 替换为您的 Milky 服务器的实际 HTTP 地址。
+    //    第二个参数是可选的 access_token。
+    let client = MilkyClient::new("http://127.0.0.1:3000", None, event_tx)?;
+    let client = Arc::new(client);
+
+    // 3. 连接到 WebSocket 事件流
+    if let Err(e) = client.connect_events().await {
+        error!("未能连接到事件流: {:?}", e);
+        return Err(e);
+    }
+    info!("成功连接到 Milky 服务器事件流。");
+
+    // 4. 启动一个异步任务来处理接收到的事件
+    let client_for_task = Arc::clone(&client);
+    let _event_handle = tokio::spawn(async move {
+        info!("事件监听器已启动。");
+        while let Some(event) = event_rx.recv().await {
+            info!("收到事件: {:?}", event); // 打印原始事件
+
+            match event.kind {
+                EventKind::MessageReceive(incoming_msg) => {
+                    let plain_text = get_plain_text_from_segments(&incoming_msg.segments);
+                    info!(
+                        "收到来自 {} 的消息 ({}): {}",
+                        incoming_msg.sender_id, incoming_msg.message_scene, plain_text
+                    );
+
+                    // 示例：复读
+                    if incoming_msg.message_scene == "friend" && plain_text.starts_with("/echo") {
+                        let reply_segments = vec![text_segment(&(plain_text.replace("/echo", "")))];
+                        match client_for_task
+                            .send_private_msg(incoming_msg.sender_id, reply_segments)
+                            .await
+                        {
+                            Ok(resp) => info!("自动回复成功: seq={}", resp.message_seq),
+                            Err(e) => error!("自动回复失败: {:?}", e),
+                        }
+                    }
+                }
+                EventKind::GroupMemberIncrease(data) => {
+                    info!("群 {} 新成员加入: {}", data.group_id, data.user_id);
+                }
+                // ... 处理其他事件类型
+                _ => {}
+            }
+        }
+        info!("事件监听器已停止。");
+    });
+
+    // 等待连接稳定和事件监听器启动
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    // 5. 调用 API 示例
+    // 获取登录信息
+    match client.get_login_info().await {
+        Ok(login_info) => {
+            info!(
+                "登录信息: QQ={}, 昵称='{}'",
+                login_info.uin, login_info.nickname
+            );
+        }
+        Err(e) => {
+            error!("未能获取登录信息: {:?}", e);
+        }
+    }
+
+    // 发送私聊消息 (请替换为有效的 user_id)
+    let user_id_to_send: i64 = 123456789; // 示例QQ号
+    let message_to_send = vec![text_segment("你好，这是一个来自 Vivian SDK 的测试消息！")];
+    match client
+        .send_private_msg(user_id_to_send, message_to_send)
+        .await
+    {
+        Ok(response) => {
+            info!(
+                "私聊消息成功发送至 {}: message_seq={}",
+                user_id_to_send, response.message_seq
+            );
+        }
+        Err(e) => {
+            error!("未能发送私聊消息至 {}: {:?}", user_id_to_send, e);
+        }
+    }
+
+    // 保持主程序运行以处理事件。在实际应用中，您需要更健壮的关闭逻辑。
+    info!("示例正在运行。按 Ctrl-C 退出。");
+    tokio::signal::ctrl_c().await?; // 等待 Ctrl-C信号
+    info!("收到 Ctrl-C，正在关闭...");
+
+    // 6. 关闭事件流
+    client.close_event_stream().await?;
+    info!("客户端事件流已关闭。");
+
+    Ok(())
+}
+
+```
+
+## 主要模块和类型
+
+*   **`MilkyClient`**: SDK 的核心客户端，用于所有API调用和事件连接。
+*   **`Event` 和 `EventKind`**: 定义了从服务器接收到的各种事件及其具体数据。
+*   **消息段 (`IncomingSegment`, `OutgoingSegment`)**: 消息内容的组成部分，如文本 (`TextData`)、图片 (`ImageData`)、@提及 (`MentionData`) 等。
+    *   `types::message::get_plain_text_from_segments(&Vec<IncomingSegment>) -> String`: 一个实用函数，用于从消息段列表中提取并拼接所有纯文本内容。
+*   **API模块 (`vivian::api::*`)**:
+    *   `file`: 私聊和群文件的上传、下载、管理。
+    *   `friend`: 好友互动，如戳一戳、点赞。
+    *   `group`: 群组管理，如设置群信息、管理成员、群公告、禁言、踢人等。
+    *   `message`: 消息的发送、获取、撤回等。
+    *   `request`: 处理好友请求和加群请求。
+    *   `system`: 获取登录信息、好友/群列表等。
+*   **错误处理**:
+    *   `MilkyError`: SDK操作中可能发生的各种错误。
+    *   `Result<T>`: `std::result::Result<T, MilkyError>` 的别名。
+
+## 日志
+
+Vivian SDK 使用 `log` crate 进行日志记录，并提供了一个自定义的初始化函数 `vivian::logger::init_logger`。
+它支持通过 `RUST_LOG` 环境变量或直接传递 `LevelFilter` 来配置日志级别。日志输出带有颜色，格式如下：
+`[MM-DD HH:MM:SS] [级别] [模块路径] > 消息内容`
+
+例如：
+`[05-22 20:47:36] [INFO] vivian::client > 正在连接 WebSocket 以接收事件: ws://127.0.0.1:3000/event`
+
+## 贡献
+
+欢迎对本项目做出贡献！如果您发现任何bug或有功能建议，请随时提交 Issues 或 Pull Requests。
+
+## 许可证
