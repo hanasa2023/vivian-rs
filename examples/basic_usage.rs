@@ -1,5 +1,7 @@
 use log::{error, info};
 use tokio::sync::mpsc;
+use vivian::logger::init_logger;
+use vivian::types::message::get_plain_text_from_segments;
 use vivian::types::message::out_going::OutgoingSegment;
 use vivian::types::message::out_going::TextData;
 use vivian::{MilkyClient, Result, types::event::Event};
@@ -12,13 +14,13 @@ fn text_segment(text: &str) -> OutgoingSegment {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    pretty_env_logger::init(); // 初始化日志记录器
+    init_logger(None); // 初始化日志记录器
 
     let (event_tx, mut event_rx) = mpsc::channel::<Event>(100); // 事件通道
 
     // MilkyClient期望一个HTTP/HTTPS基础URL用于API调用，
     // 并且它将从中派生出WebSocket URL。
-    let client = MilkyClient::new("http://127.0.0.1:8080", None, event_tx)?; // 请替换为您的Milky服务器HTTP地址
+    let client = MilkyClient::new("http://127.0.0.1:3000", None, event_tx)?; // 请替换为您的Milky服务器HTTP地址
 
     // 连接到WebSocket以接收事件，并在后台开始处理它们
     if let Err(e) = client.connect_events().await {
@@ -37,25 +39,19 @@ async fn main() -> Result<()> {
 
             // 要处理特定的事件类型（如 PrivateMessage, GroupMessage 等），
             // 您通常需要 EventKind 枚举。
-            // 当前 client.rs 的实现发送的是基础的 Event 结构体。
-            // 对于详细的事件处理，您可能需要：
-            // 1. 修改 client.rs 以解析并发送包含 EventKind 的结构体。
-            // 2. 或者，如果事件是带有类型字段的JSON字符串，则在此处解析它们。
-            // 目前，我们只记录基础的事件数据。
             // 示例：
-            // if let Ok(full_event_data) = serde_json::from_str::<vivian::types::event::EventKind>(&event.raw_data_if_available) {
-            //     match full_event_data {
-            //         vivian::types::event::EventKind::MessageReceive(msg_event) => {
-            //             if msg_event.message_type == "private" {
-            //                 info!("来自 {} 的私聊消息: {}", msg_event.user_id.unwrap_or_default(), msg_event.alt_message);
-            //             } else if msg_event.message_type == "group" {
-            //                 info!("群 {} 中来自用户 {} 的消息: {}", msg_event.group_id.unwrap_or_default(), msg_event.user_id.unwrap_or_default(), msg_event.alt_message);
-            //             }
-            //         },
-            //         // 处理其他 EventKind 变体
-            //         _ => {}
-            //     }
-            // }
+            match event.kind {
+                vivian::EventKind::MessageReceive(incoming_msg) => {
+                    info!(
+                        "收到来自 {} 的消息: {:?}",
+                        incoming_msg.peer_id, incoming_msg.segments
+                    );
+                    let plain_text = get_plain_text_from_segments(&incoming_msg.segments);
+                    info!("纯文本消息为：{}", plain_text);
+                }
+                vivian::EventKind::MessageRecall(_) => {}
+                _ => {}
+            }
         }
         info!("事件监听器已停止。");
     });
