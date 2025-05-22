@@ -3,7 +3,7 @@
 [![Repository](https://img.shields.io/badge/repository-GitHub-blue.svg)](https://github.com/hanasa2023/vivian-rs)
 [![Latest version](https://img.shields.io/crates/v/vivian.svg)](https://crates.io/crates/vivian)
 [![Documentation](https://docs.rs/vivian/badge.svg)](https://docs.rs/vivian)
-[![License](https://img.shields.io/crates/l/vivian.svg)
+![License](https://img.shields.io/crates/l/vivian.svg)
 
 Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 "Milky" 后端服务（或类似API架构的服务）进行交互。它提供了一套便捷的API客户端，用于执行各种操作，如发送消息、管理群组、处理文件，并能通过 WebSocket 接收和处理实时事件。
 
