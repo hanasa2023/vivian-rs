@@ -2,6 +2,21 @@
 name = "vivian"
 version = "0.1.0"
 edition = "2024"
+authors = ["hanasaki <hanasakayui2022@gmail.com>"]
+description = "Rust implementation (Vivian) of the Milky protocol"
+keywords = ["chatbot", "sdk", "async"]
+categories = [
+    "api-bindings",
+    "asynchronous",
+    "network-programming",
+    "web-programming::websocket",
+]
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/hanasa2023/vivian-rs"
+repository = "https://github.com/hanasa2023/vivian-rs"
+
+[badges]
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
