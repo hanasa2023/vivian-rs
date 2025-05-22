@@ -1,11 +1,13 @@
-use log::{error, info};
-use tokio::sync::mpsc;
-use vivian::logger::init_logger;
-use vivian::types::message::get_plain_text_from_segments;
-use vivian::types::message::out_going::OutgoingSegment;
-use vivian::types::message::out_going::TextData;
-use vivian::{MilkyClient, Result, types::event::Event};
+use std::sync::Arc;
 
+use log::{LevelFilter, error, info};
+use tokio::sync::mpsc;
+use vivian::logger; // 确保 logger 模块被正确引用
+use vivian::types::message::get_plain_text_from_segments; // 辅助函数
+use vivian::types::message::out_going::{OutgoingSegment, TextData};
+use vivian::{Event, EventKind, MilkyClient, Result};
+
+// 辅助函数，用于创建文本消息段
 fn text_segment(text: &str) -> OutgoingSegment {
     OutgoingSegment::Text(TextData {
         text: text.to_string(),
@@ -14,57 +16,66 @@ fn text_segment(text: &str) -> OutgoingSegment {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    init_logger(None); // 初始化日志记录器
+    logger::init_logger(Some(LevelFilter::Info)); // 初始化日志
 
-    let (event_tx, mut event_rx) = mpsc::channel::<Event>(100); // 事件通道
+    // 1. 创建事件通道
+    let (event_tx, mut event_rx) = mpsc::channel::<Event>(100);
 
-    // MilkyClient期望一个HTTP/HTTPS基础URL用于API调用，
-    // 并且它将从中派生出WebSocket URL。
-    let client = MilkyClient::new("http://127.0.0.1:3000", None, event_tx)?; // 请替换为您的Milky服务器HTTP地址
+    // 2. 初始化 MilkyClient
+    //    请将 "http://127.0.0.1:3000" 替换为您的 Milky 服务器的实际 HTTP 地址。
+    //    第二个参数是可选的 access_token。
+    let client = MilkyClient::new("http://127.0.0.1:3000", None, event_tx)?;
+    let client = Arc::new(client);
 
-    // 连接到WebSocket以接收事件，并在后台开始处理它们
+    // 3. 连接到 WebSocket 事件流
     if let Err(e) = client.connect_events().await {
         error!("未能连接到事件流: {:?}", e);
         return Err(e);
     }
-    info!("成功连接到Milky服务器事件流。");
+    info!("成功连接到 Milky 服务器事件流。");
 
-    // 启动一个任务来接收和处理事件
+    // 4. 启动一个异步任务来处理接收到的事件
+    let client_for_task = Arc::clone(&client);
     let _event_handle = tokio::spawn(async move {
         info!("事件监听器已启动。");
         while let Some(event) = event_rx.recv().await {
-            // 收到的 'event' 是 vivian::types::event::Event 类型
-            // 其中包含 { time: i64, self_id: i64 }
-            info!("收到事件: {:?}", event);
+            info!("收到事件: {:?}", event); // 打印原始事件
 
-            // 要处理特定的事件类型（如 PrivateMessage, GroupMessage 等），
-            // 您通常需要 EventKind 枚举。
-            // 示例：
             match event.kind {
-                vivian::EventKind::MessageReceive(incoming_msg) => {
-                    info!(
-                        "收到来自 {} 的消息: {:?}",
-                        incoming_msg.peer_id, incoming_msg.segments
-                    );
+                EventKind::MessageReceive(incoming_msg) => {
                     let plain_text = get_plain_text_from_segments(&incoming_msg.segments);
-                    info!("纯文本消息为：{}", plain_text);
+                    info!(
+                        "收到来自 {} 的消息 ({}): {}",
+                        incoming_msg.sender_id, incoming_msg.message_scene, plain_text
+                    );
+
+                    // 示例：复读
+                    if incoming_msg.message_scene == "friend" && plain_text.starts_with("/echo") {
+                        let reply_segments = vec![text_segment(&(plain_text.replace("/echo", "")))];
+                        match client_for_task
+                            .send_private_msg(incoming_msg.sender_id, reply_segments)
+                            .await
+                        {
+                            Ok(resp) => info!("自动回复成功: seq={}", resp.message_seq),
+                            Err(e) => error!("自动回复失败: {:?}", e),
+                        }
+                    }
                 }
-                vivian::EventKind::MessageRecall(_) => {}
+                EventKind::GroupMemberIncrease(data) => {
+                    info!("群 {} 新成员加入: {}", data.group_id, data.user_id);
+                }
+                // ... 处理其他事件类型
                 _ => {}
             }
         }
         info!("事件监听器已停止。");
     });
 
-    // 留出一些时间让连接稳定并且事件监听器启动。
+    // 等待连接稳定和事件监听器启动
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
-    // --- API 调用示例 ---
-    // 注意：这些调用是从主任务进行的。
-    // 如果您需要在事件处理任务内部调用客户端方法，
-    // 您将需要使用 Arc<MilkyClient>。
-
-    // 示例 1：获取登录信息
+    // 5. 调用 API 示例
+    // 获取登录信息
     match client.get_login_info().await {
         Ok(login_info) => {
             info!(
@@ -77,27 +88,9 @@ async fn main() -> Result<()> {
         }
     }
 
-    // 示例 2：获取好友列表
-    match client.get_friend_list(false).await {
-        // false 表示不使用缓存
-        Ok(friend_list_response) => {
-            info!("获取到 {} 个好友。", friend_list_response.friends.len());
-            for friend in friend_list_response.friends.iter().take(3) {
-                // 打印前3个好友
-                info!("  - 好友 ID: {}, 昵称: {}", friend.user_id, friend.nickname);
-            }
-        }
-        Err(e) => {
-            error!("未能获取好友列表: {:?}", e);
-        }
-    }
-
-    // 示例 3：发送私聊消息
-    let user_id_to_send: i64 = 123456789; // 请替换为有效的QQ号以进行测试
-    let message_to_send = vec![
-        text_segment("来自 vivian SDK 的问候! "),
-        text_segment("这是一条测试消息。"),
-    ];
+    // 发送私聊消息 (请替换为有效的 user_id)
+    let user_id_to_send: i64 = 123456789; // 示例QQ号
+    let message_to_send = vec![text_segment("你好，这是一个来自 Vivian SDK 的测试消息！")];
     match client
         .send_private_msg(user_id_to_send, message_to_send)
         .await
@@ -113,42 +106,14 @@ async fn main() -> Result<()> {
         }
     }
 
-    // 示例 4：设置群名称（需要有效的 group_id）
-    let group_id_to_rename: i64 = 987654321; // 请替换为有效的群ID
-    let new_group_name = "Vivian 测试群名称".to_string();
-    match client
-        .set_group_name(group_id_to_rename, new_group_name.clone())
-        .await
-    {
-        Ok(_) => {
-            info!(
-                "成功将群 {} 名称设置为 '{}'",
-                group_id_to_rename, new_group_name
-            );
-        }
-        Err(e) => {
-            error!("未能为 {} 设置群名称: {:?}", group_id_to_rename, e);
-        }
-    }
-
-    // 保持主程序运行以允许事件循环处理事件。
-    // 在实际应用中，您可能会有更复杂的关闭逻辑。
+    // 保持主程序运行以处理事件。在实际应用中，您需要更健壮的关闭逻辑。
     info!("示例正在运行。按 Ctrl-C 退出。");
-    // 您可以使用 tokio::signal::ctrl_c() 来实现优雅关闭：
-    // tokio::signal::ctrl_c().await?;
-    // info!("收到 Ctrl-C，正在关闭。");
+    tokio::signal::ctrl_c().await?; // 等待 Ctrl-C信号
+    info!("收到 Ctrl-C，正在关闭...");
 
-    // 在此示例中，让它运行一段时间或直到手动停止
-    std::thread::sleep(std::time::Duration::from_secs(600)); // 运行10分钟
-
-    // 完成后关闭WebSocket连接。
+    // 6. 关闭事件流
     client.close_event_stream().await?;
     info!("客户端事件流已关闭。");
-
-    // 等待事件处理任务完成（可选）
-    // if let Err(e) = event_handle.await {
-    //     eprintln!("事件处理任务发生 panic: {:?}", e);
-    // }
 
     Ok(())
 }
