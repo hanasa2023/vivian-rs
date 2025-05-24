@@ -19,8 +19,6 @@ pub struct IncomingMessage {
     /// 消息发送的Unix时间戳（单位：秒）。
     pub time: i64,
     /// 组成消息内容的实际数据段列表。
-    /// `serde` 在序列化/反序列化时会将其重命名为 "message"。
-    #[serde(rename = "message")]
     pub segments: Vec<IncomingSegment>,
     /// 消息场景的类型标识符，例如 "friend", "group", "temp" 等。
     pub message_scene: String,

@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// 获取当前登录账号信息的请求参数。
 /// 此结构体为空，因为此API调用通常不需要额外参数。
 #[derive(Serialize)]
-pub struct GetLoginInfoParams;
+pub struct GetLoginInfoParams {}
 
 /// 获取好友列表的请求参数。
 #[derive(Serialize)]
@@ -125,7 +125,7 @@ impl MilkyClient {
     /// # 返回
     /// 成功则返回包含登录QQ号和昵称的 [`GetLoginInfoResponse`]。
     pub async fn get_login_info(&self) -> Result<GetLoginInfoResponse> {
-        let params = GetLoginInfoParams; // 此API通常无参数
+        let params = GetLoginInfoParams {}; // 此API通常无参数
         self.send_request("get_login_info", params).await
     }
 

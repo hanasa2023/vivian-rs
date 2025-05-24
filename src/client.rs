@@ -12,10 +12,12 @@ use futures_util::{StreamExt, lock::Mutex};
 use log::{debug, error, info, warn}; // 日志记录宏
 use reqwest::StatusCode; // HTTP状态码
 use serde::{Serialize, de::DeserializeOwned}; // 序列化与反序列化相关
-use serde_json::Value; // 用于处理动态JSON数据
+use serde_json::Value;
 use std::sync::Arc; // 原子引用计数，用于多线程共享数据
 use tokio::net::TcpStream; // Tokio提供的异步TCP流
 use tokio::sync::mpsc; // Tokio提供的多生产者单消费者异步通道
+use tokio_tungstenite::tungstenite::protocol::CloseFrame; // 用于处理动态JSON数据
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message as WsMessage,
 }; // WebSocket相关
@@ -275,7 +277,13 @@ impl MilkyClient {
         info!("正在关闭 WebSocket 事件流。");
         let mut guard = self.ws_stream.lock().await;
         if let Some(mut stream) = guard.take() {
-            if let Err(e) = stream.close(None).await {
+            if let Err(e) = stream
+                .close(Some(CloseFrame {
+                    code: CloseCode::Normal,
+                    reason: "关闭事件流".into(),
+                }))
+                .await
+            {
                 warn!("关闭 WebSocket 事件流时出错: {:?}", e);
             }
         }

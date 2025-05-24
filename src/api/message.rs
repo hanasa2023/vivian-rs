@@ -163,7 +163,7 @@ impl MilkyClient {
         message: Vec<OutgoingSegment>,
     ) -> Result<SendPrivateMsgResponse> {
         let params = SendPrivateMsgParams { user_id, message };
-        self.send_request("send_private_msg", params).await
+        self.send_request("send_private_message", params).await
     }
 
     /// 发送群聊消息到指定群组。
@@ -180,7 +180,7 @@ impl MilkyClient {
         message: Vec<OutgoingSegment>,
     ) -> Result<SendGroupMsgResponse> {
         let params = SendGroupMsgParams { group_id, message };
-        self.send_request("send_group_msg", params).await
+        self.send_request("send_group_message", params).await
     }
 
     /// 获取指定场景下的单条消息内容。
@@ -203,7 +203,7 @@ impl MilkyClient {
             peer_id,
             message_seq,
         };
-        self.send_request("get_msg", params).await
+        self.send_request("get_message", params).await
     }
 
     /// 获取指定场景下的历史消息记录。
