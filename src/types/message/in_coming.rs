@@ -214,6 +214,8 @@ pub struct ReplyData {
 pub struct ImageData {
     /// 图片的资源ID，可用于后续操作（如获取图片URL）。
     pub resource_id: String,
+    /// 临时URL
+    pub temp_url: String,
     /// 图片的预览文本或摘要（可选）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
@@ -226,6 +228,8 @@ pub struct ImageData {
 pub struct RecordData {
     /// 语音的资源ID，可用于后续操作。
     pub resource_id: String,
+    /// 临时URL
+    pub temp_url: String,
     /// 语音的时长（单位：秒）。
     pub duration: i32,
 }
@@ -235,6 +239,8 @@ pub struct RecordData {
 pub struct VideoData {
     /// 视频的资源ID，可用于后续操作。
     pub resource_id: String,
+    /// 临时URL
+    pub temp_url: String,
 }
 
 /// 合并转发消息段的具体数据。

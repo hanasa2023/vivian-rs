@@ -93,9 +93,11 @@ pub struct GetFriendListResponse {
     pub friends: Vec<Friend>,
 }
 
-/// 获取指定好友信息的响应数据类型别名。
-/// 响应直接是 [`Friend`] 结构体。
-pub type GetFriendInfoResponse = Friend;
+/// 获取指定好友信息的响应数据。
+#[derive(Deserialize, Debug)]
+pub struct GetFriendInfoResponse {
+    pub friend: Friend,
+}
 
 /// 获取群列表的响应数据。
 #[derive(Deserialize, Debug)]
@@ -105,8 +107,10 @@ pub struct GetGroupListResponse {
 }
 
 /// 获取指定群信息的响应数据类型别名。
-/// 响应直接是 [`Group`] 结构体。
-pub type GetGroupInfoResponse = Group;
+#[derive(Deserialize, Debug)]
+pub struct GetGroupInfoResponse {
+    pub group: Group,
+}
 
 /// 获取指定群成员列表的响应数据。
 #[derive(Deserialize, Debug)]
@@ -116,8 +120,10 @@ pub struct GetGroupMemberListResponse {
 }
 
 /// 获取指定群成员信息的响应数据类型别名。
-/// 响应直接是 [`GroupMember`] 结构体。
-pub type GetGroupMemberInfoResponse = GroupMember;
+#[derive(Deserialize, Debug)]
+pub struct GetGroupMemberInfoResponse {
+    pub member: GroupMember,
+}
 
 impl MilkyClient {
     /// 获取当前登录账号的基本信息。
@@ -148,7 +154,7 @@ impl MilkyClient {
     /// * `no_cache`: 是否强制不使用缓存。
     ///
     /// # 返回
-    /// 成功则返回该好友的详细信息 [`GetFriendInfoResponse`] (即 [`Friend`] 类型)。
+    /// 成功则返回该好友的详细信息 [`GetFriendInfoResponse`]。
     pub async fn get_friend_info(
         &self,
         user_id: i64,
@@ -177,7 +183,7 @@ impl MilkyClient {
     /// * `no_cache`: 是否强制不使用缓存。
     ///
     /// # 返回
-    /// 成功则返回该群的详细信息 [`GetGroupInfoResponse`] (即 [`Group`] 类型)。
+    /// 成功则返回该群的详细信息 [`GetGroupInfoResponse`]。
     pub async fn get_group_info(
         &self,
         group_id: i64,
@@ -212,7 +218,7 @@ impl MilkyClient {
     /// * `no_cache`: 是否强制不使用缓存。
     ///
     /// # 返回
-    /// 成功则返回该群成员的详细信息 [`GetGroupMemberInfoResponse`] (即 [`GroupMember`] 类型)。
+    /// 成功则返回该群成员的详细信息 [`GetGroupMemberInfoResponse`]。
     pub async fn get_group_member_info(
         &self,
         group_id: i64,

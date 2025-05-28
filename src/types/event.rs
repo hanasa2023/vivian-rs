@@ -300,6 +300,8 @@ pub struct GroupMuteData {
     pub group_id: i64,
     /// 被禁言/解除禁言的用户的QQ号。
     pub user_id: i64,
+    /// 操作者QQ号
+    pub operator_id: i64,
     /// 禁言时长（秒）。值为0通常表示用户被解除禁言。
     pub duration: i32,
 }

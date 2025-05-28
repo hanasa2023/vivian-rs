@@ -152,6 +152,8 @@ pub struct QuitGroupParams {
 /// 发送群消息表情回应的请求参数。
 #[derive(Serialize)]
 pub struct SendGroupMessageReactionParams {
+    /// 群号
+    ///
     /// 要回应的目标消息的序列号 (`message_seq`)。
     pub message_seq: i64,
     /// 要发送的表情回应的ID。

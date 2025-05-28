@@ -12,6 +12,8 @@ pub struct Friend {
     pub qid: Option<String>,
     /// 好友的昵称。
     pub nickname: String,
+    /// 性别，可能值 "male", "female", "unknown"
+    pub sex: String,
     /// 您为好友设置的备注名称。
     pub remark: String,
     /// 好友所属的分组信息（可选）。
