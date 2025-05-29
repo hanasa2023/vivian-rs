@@ -25,7 +25,7 @@ jobs:
       - name: Login into crates.io
         env:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO }}
-        run: echo "CRATES_IO_TOKEN" | cargo login
+        run: echo "$CRATES_IO_TOKEN" | cargo login
 
       - name: Package for crates.io
         run: cargo package
