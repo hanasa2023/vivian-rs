@@ -5,8 +5,8 @@
 [![Documentation](https://docs.rs/vivian/badge.svg)](https://docs.rs/vivian)
 ![License](https://img.shields.io/crates/l/vivian.svg)
 
-Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 "Milky"
-后端服务（或类似API架构的服务）进行交互。它提供了一套便捷的API客户端，用于执行各种操作，
+Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 [Milky](https://milky.ntqqrev.org/)
+后端服务进行交互。它提供了一套便捷的API客户端，用于执行各种操作，
 如发送消息、管理群组、处理文件，并能通过 WebSocket/WebHook 接收和处理实时事件。
 
 ## 特性
@@ -21,7 +21,7 @@ Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 "Mi
   - **系统信息**: 获取登录信息、好友列表、群列表等。
 - **实时事件处理**: 通过 WebSocket 接收服务器推送的各类事件，如新消息、用户加入/退出群组等。
 - **强类型接口**: 所有API请求参数和响应数据都有明确的Rust结构体定义，利用 `serde`进行序列化和反序列化，确保类型安全。
-- **自定义日志**: 内置可定制的日志记录器 (`logger.rs`)，支持彩色输出和级别过滤。
+- **自定义日志**: 内置可定制的日志记录器 ()，支持彩色输出和级别过滤。
 - **错误处理**: 定义了详细的错误类型 `MilkyError` (`error.rs`) 和统一的 `Result<T>`，方便错误处理。
 - **模块化设计**: 清晰的模块划分，包括 `client` (核心客户端)、`api` (各API端点实现)、`types` (数据结构定义)、`error` (错误处理) 和 `logger` (日志模块)。
 
@@ -174,32 +174,6 @@ async fn main() -> Result<()> {
 }
 
 ```
-
-## 主要模块和类型
-
-- **`MilkyClient`**: SDK 的核心客户端，用于所有API调用和事件连接。
-- **`Event` 和 `EventKind`**: 定义了从服务器接收到的各种事件及其具体数据。
-- **消息段 (`IncomingSegment`, `OutgoingSegment`)**: 消息内容的组成部分，如文本 (`TextData`)、图片 (`ImageData`)、@提及 (`MentionData`) 等。
-  - `types::message::get_plain_text_from_segments(&Vec<IncomingSegment>) -> String`: 一个实用函数，用于从消息段列表中提取并拼接所有纯文本内容。
-- **API模块 (`vivian::api::*`)**:
-  - `file`: 私聊和群文件的上传、下载、管理。
-  - `friend`: 好友互动，如戳一戳、点赞。
-  - `group`: 群组管理，如设置群信息、管理成员、群公告、禁言、踢人等。
-  - `message`: 消息的发送、获取、撤回等。
-  - `request`: 处理好友请求和加群请求。
-  - `system`: 获取登录信息、好友/群列表等。
-- **错误处理**:
-  - `MilkyError`: SDK操作中可能发生的各种错误。
-  - `Result<T>`: `std::result::Result<T, MilkyError>` 的别名。
-
-## 日志
-
-Vivian SDK 使用 `log` crate 进行日志记录，并提供了一个自定义的初始化函数 `vivian::logger::init_logger`。
-它支持通过 `RUST_LOG` 环境变量或直接传递 `LevelFilter` 来配置日志级别。日志输出带有颜色，格式如下：
-`[MM-DD HH:MM:SS] [级别] [模块路径] > 消息内容`
-
-例如：
-`[05-22 20:47:36] [INFO] vivian::client > 正在连接 WebSocket 以接收事件: ws://127.0.0.1:3000/event`
 
 ## 贡献
 
