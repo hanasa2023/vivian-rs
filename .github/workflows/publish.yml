@@ -3,7 +3,7 @@ name: Publish to creates.io
 on:
   push:
     tags:
-      - "v.*.*"
+      - "v*.*.*"
 
 jobs:
   publish:
@@ -23,7 +23,9 @@ jobs:
         run: cargo test --release
 
       - name: Login into crates.io
-        run: cargo login ${{ secrets.CRATES_IO }}
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO }}
+        run: echo "CRATES_IO_TOKEN" | cargo login
 
       - name: Package for crates.io
         run: cargo package
