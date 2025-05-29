@@ -17,6 +17,7 @@ pub mod types;
 pub use client::MilkyClient;
 pub use error::{MilkyError, Result};
 pub use types::{
+    communication::{Communication, WebHookConfig, WebSocketConfig},
     event::{Event, EventKind},
     friend::{Friend, FriendCategory},
     group::{Group, GroupAnnouncement, GroupFile, GroupFolder, GroupMember},

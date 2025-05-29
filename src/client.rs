@@ -6,22 +6,24 @@
 
 use crate::error::{MilkyError, Result};
 use crate::types::common::ApiResponse;
+use crate::types::communication::Communication;
 use crate::types::event::Event;
+use crate::types::message::OriginalMessage;
 
+use axum::routing::post;
+use axum::{Json, Router};
 use futures_util::{StreamExt, lock::Mutex};
-use log::{debug, error, info, warn}; // 日志记录宏
-use reqwest::StatusCode; // HTTP状态码
-use serde::{Serialize, de::DeserializeOwned}; // 序列化与反序列化相关
+use log::{debug, error, info, warn};
+use reqwest::StatusCode;
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use std::sync::Arc; // 原子引用计数，用于多线程共享数据
-use tokio::net::TcpStream; // Tokio提供的异步TCP流
-use tokio::sync::mpsc; // Tokio提供的多生产者单消费者异步通道
-use tokio_tungstenite::tungstenite::protocol::CloseFrame; // 用于处理动态JSON数据
-use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use std::sync::Arc;
+use tokio::net::TcpStream;
+use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message as WsMessage,
-}; // WebSocket相关
-use url::Url; // URL处理
+};
+use url::Url;
 
 /// `MilkyClient` 是与后端服务交互的主要结构体。
 ///
@@ -30,16 +32,22 @@ use url::Url; // URL处理
 pub struct MilkyClient {
     /// 用于发送HTTP API请求的 `reqwest` 客户端实例。
     http_client: reqwest::Client,
-    /// API请求的基础URL，例如 `http://127.0.0.1:8080/api/`。
+    /// 与服务端的通信方式
+    comm_type: Communication,
+    /// API请求的基础URL，例如 `lhttp://127.0.0.1:8080/api/`。
     api_base_url: Url,
+    /// WebHook接收事件的URL
+    event_wh_url: String,
     /// 事件WebSocket连接的URL，例如 `ws://127.0.0.1:8080/event`。
-    event_ws_url: Url,
+    event_ws_url: Option<Url>,
     /// 可选的访问令牌，用于API请求和WebSocket连接的认证。
     access_token: Option<String>,
     /// WebSocket流的可选共享引用。
     /// 使用 `Arc<Mutex<...>>` 来允许多个任务安全地访问和修改WebSocket流。
     /// `Option` 表示连接可能尚未建立或已关闭。
     ws_stream: Arc<Mutex<Option<WebSocketStream<MaybeTlsStream<TcpStream>>>>>,
+    // 用于发送关闭 WebSocket 的信号
+    ws_shutdown_signal_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
     /// 用于将从WebSocket接收到的事件发送到上层处理逻辑的mpsc通道发送端。
     event_sender: mpsc::Sender<Event>,
 }
@@ -48,158 +56,358 @@ impl MilkyClient {
     /// 创建一个新的 `MilkyClient` 实例。
     ///
     /// # 参数
-    /// * `host_address`: 后端服务的主机地址，例如 `"http://127.0.0.1:8080"`。
-    /// * `access_token`: 可选的访问令牌，用于认证。
+    /// * `comm`: 与服务端的通信方式
     /// * `event_sender`: 一个mpsc通道的发送端，用于将接收到的事件传递出去。
     ///
     /// # 返回
     /// 成功则返回 `Result<Self>`，其中 `Self` 是新创建的 `MilkyClient` 实例。
     /// 如果URL解析失败或协议不受支持，则返回错误。
-    pub fn new(
-        host_address: &str, // 例如: "http://127.0.0.1:8080"
-        access_token: Option<String>,
-        event_sender: mpsc::Sender<Event>,
-    ) -> Result<Self> {
-        // 解析基础URL
-        let base_url = Url::parse(host_address)?;
+    pub fn new(comm: Communication, event_sender: mpsc::Sender<Event>) -> Result<Self> {
+        let _comm = comm.clone();
+        match comm {
+            Communication::WebSocket(config) => {
+                // 解析基础URL
+                let ws_url = Url::parse(&config.ws_endpoint)?;
 
-        // 构建API基础URL
-        let mut api_base_url_str = base_url.to_string();
-        if !api_base_url_str.ends_with('/') {
-            api_base_url_str.push('/');
+                // 构建API基础URL
+                let scheme = match ws_url.scheme() {
+                    "ws" => "http",
+                    "wss" => "https",
+                    _ => return Err(MilkyError::UnsupportedScheme(ws_url.scheme().to_string())),
+                };
+                let mut api_base_url = ws_url.clone();
+                api_base_url
+                    .set_scheme(scheme)
+                    .map_err(|_| MilkyError::UrlParse(url::ParseError::InvalidPort))?;
+                api_base_url.set_path("/api");
+
+                // 构建事件WebSocket URL
+                let mut event_ws_url = ws_url.clone();
+                event_ws_url.set_path("event");
+                if let Some(token) = &config.access_token {
+                    // 如果有访问令牌，则添加到查询参数中
+                    event_ws_url
+                        .query_pairs_mut()
+                        .append_pair("access_token", token);
+                }
+
+                Ok(Self {
+                    http_client: reqwest::Client::new(),
+                    api_base_url,
+                    comm_type: _comm,
+                    event_wh_url: String::new(),
+                    event_ws_url: Some(event_ws_url),
+                    access_token: config.access_token,
+                    ws_stream: Arc::new(Mutex::new(None)),
+                    ws_shutdown_signal_tx: Arc::new(Mutex::new(None)),
+                    event_sender,
+                })
+            }
+            Communication::WebHook(config) => {
+                // 构建Event基础URL
+                let event_base_url = format!("{}:{}", config.host, config.port);
+
+                // 构建Event基础URL
+                let mut api_base_url = Url::parse(&config.http_endpoint)?;
+                api_base_url.set_path("api");
+
+                Ok(Self {
+                    http_client: reqwest::Client::new(),
+                    comm_type: _comm,
+                    api_base_url,
+                    event_wh_url: event_base_url,
+                    event_ws_url: None,
+                    access_token: config.access_token,
+                    ws_stream: Arc::new(Mutex::new(None)),
+                    ws_shutdown_signal_tx: Arc::new(Mutex::new(None)),
+                    event_sender,
+                })
+            }
         }
-        let api_base_url = Url::parse(&api_base_url_str)?.join("api/")?;
-
-        // 构建事件WebSocket URL
-        let mut event_ws_url = base_url.clone();
-        let scheme = match base_url.scheme() {
-            "http" => "ws",
-            "https" => "wss",
-            _ => return Err(MilkyError::UnsupportedScheme(base_url.scheme().to_string())),
-        };
-        event_ws_url
-            .set_scheme(scheme)
-            .map_err(|_| MilkyError::UrlParse(url::ParseError::InvalidPort))?;
-        event_ws_url.set_path("event");
-        if let Some(token) = &access_token {
-            // 如果有访问令牌，则添加到查询参数中
-            event_ws_url
-                .query_pairs_mut()
-                .append_pair("access_token", token);
-        }
-
-        Ok(Self {
-            http_client: reqwest::Client::new(),
-            api_base_url,
-            event_ws_url,
-            access_token,
-            ws_stream: Arc::new(Mutex::new(None)),
-            event_sender,
-        })
     }
 
-    /// 连接到WebSocket以接收事件。
-    ///
-    /// 此方法会尝试建立到 `event_ws_url` 的WebSocket连接。
-    /// 连接成功后，会启动一个新的异步任务来持续读取和处理来自服务器的事件消息。
+    /// 尝试接收服务端发送的事件。
     ///
     /// # 返回
     /// 成功建立连接并启动事件读取循环则返回 `Ok(())`，否则返回错误。
     pub async fn connect_events(&self) -> Result<()> {
-        info!("正在连接 WebSocket 以接收事件: {}", self.event_ws_url);
-        // 异步连接WebSocket
-        let (ws_stream_internal, response) = connect_async(self.event_ws_url.clone())
-            .await
-            .map_err(MilkyError::WebSocket)?;
-        info!("事件 WebSocket 握手成功完成！");
-        debug!("响应的 HTTP 代码: {}", response.status());
+        match self.comm_type {
+            Communication::WebSocket(_) => {
+                let event_ws_url = self
+                    .event_ws_url
+                    .as_ref()
+                    .ok_or_else(|| {
+                        error!("WebSocket endpoint为空");
+                        MilkyError::Internal("WebSocket URL未配置".to_string())
+                    })?
+                    .to_string();
+                info!("正在连接 WebSocket 以接收事件: {event_ws_url}");
+                // 异步连接WebSocket
+                let (ws_stream_internal, response) = connect_async(event_ws_url.clone())
+                    .await
+                    .map_err(|e| MilkyError::WebSocket(Box::new(e)))?;
+                info!("事件 WebSocket 握手成功完成！");
+                debug!("响应的 HTTP 代码: {}", response.status());
 
-        *self.ws_stream.lock().await = Some(ws_stream_internal);
+                *self.ws_stream.lock().await = Some(ws_stream_internal);
 
-        let ws_stream_clone = Arc::clone(&self.ws_stream);
-        let event_sender_clone = self.event_sender.clone();
+                let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
+                *self.ws_shutdown_signal_tx.lock().await = Some(shutdown_tx);
 
-        tokio::spawn(async move {
-            info!("WebSocket 事件读取循环已启动。");
-            loop {
-                let mut guard = ws_stream_clone.lock().await;
-                let stream = match guard.as_mut() {
-                    Some(s) => s,
-                    None => {
-                        info!("WebSocket 流为空，事件读取循环将退出。");
-                        break;
+                let ws_stream_clone = Arc::clone(&self.ws_stream);
+                let event_sender_clone = self.event_sender.clone();
+                let ws_shutdown_signal_tx_clone_for_loop = Arc::clone(&self.ws_shutdown_signal_tx);
+                let ws_shutdown_signal_tx_clone_for_os_handler =
+                    Arc::clone(&self.ws_shutdown_signal_tx);
+
+                tokio::spawn(async move {
+                    let ctrl_c = async {
+                        tokio::signal::ctrl_c()
+                            .await
+                            .expect("为 WebSocket 操作系统信号安装 Ctrl+C 处理程序失败");
+                        info!("WebSocket OS 信号处理器：收到 Ctrl+C 信号。");
+                    };
+
+                    #[cfg(unix)]
+                    let terminate = async {
+                        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                            .expect("为 WebSocket 操作系统信号安装 SIGTERM 处理程序失败")
+                            .recv()
+                            .await;
+                        info!("WebSocket OS 信号处理器：收到 SIGTERM 信号。");
+                    };
+
+                    #[cfg(not(unix))]
+                    let terminate = std::future::pending::<()>(); // Keep it pending on non-Unix
+
+                    tokio::select! {
+                        _ = ctrl_c => {},
+                        _ = terminate => {},
+                    }
+
+                    info!("OS 信号触发 WebSocket 事件读取循环关闭。");
+                    // 尝试发送关闭信号
+                    if let Some(tx) = ws_shutdown_signal_tx_clone_for_os_handler
+                        .lock()
+                        .await
+                        .take()
+                    {
+                        if tx.send(()).is_ok() {
+                            info!("OS 信号处理器已成功发送关闭信号到 WebSocket 事件读取循环。");
+                        } else {
+                            info!(
+                                "OS 信号处理器无法发送关闭信号，WebSocket 事件读取循环可能已经关闭。"
+                            );
+                        }
+                    } else {
+                        info!(
+                            "OS 信号处理器发现没有活动的 WebSocket 关闭信号发送器，可能连接从未完全建立或已被关闭。"
+                        );
+                    }
+                });
+
+                tokio::spawn(async move {
+                    info!("WebSocket 事件读取循环已启动。");
+                    loop {
+                        tokio::select! {
+                            biased;
+
+                            _ = &mut shutdown_rx => {
+                                info!("WebSocket 事件读取循环收到关闭信号。");
+                                if let Some(mut stream_to_close) = ws_stream_clone.lock().await.take() {
+                                    info!("正在发送 WebSocket Close 帧...");
+                                    if let Err(e) = stream_to_close.close(None).await {
+                                        error!("发送 WebSocket Close 帧时出错: {e:?}");
+                                    } else {
+                                        info!("WebSocket Close 帧已发送，连接已关闭。");
+                                    }
+                                }
+                                break;
+                            }
+
+                            message_result = async {
+                                let mut guard = ws_stream_clone.lock().await;
+                                if let Some(stream) = guard.as_mut() {
+                                    stream.next().await
+                                } else {
+                                    None
+                                }
+                            } => {
+                                match message_result {
+                                    Some(Ok(message)) => {
+                                        if let Err(e) = Self::handle_event_message(
+                                            OriginalMessage::Ws(message),
+                                            event_sender_clone.clone(),
+                                        )
+                                        .await
+                                        {
+                                            warn!("处理WebSocket事件消息时出错: {e:?}");
+                                        }
+                                    }
+                                    Some(Err(e)) => {
+                                        error!("接收WebSocket事件消息时出错: {e:?}");
+                                        ws_stream_clone.lock().await.take(); // 移除错误的流
+                                        break; // 退出循环
+                                    }
+                                    None => { // 服务器关闭连接或流在读取前变为None
+                                        info!("服务器关闭了事件 WebSocket 连接或流已不存在。");
+                                        ws_stream_clone.lock().await.take(); // 确保流被移除
+                                        break; // 退出循环
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    info!("WebSocket 事件读取循环已结束。");
+                    ws_shutdown_signal_tx_clone_for_loop.lock().await.take();
+                });
+            }
+            Communication::WebHook(_) => {
+                info!("正在为 WebHook 配置事件接收路由...");
+                let event_sender_for_webhook = self.event_sender.clone();
+                let webhook_listen_address = self.event_wh_url.clone();
+
+                let axum_webhook_handler = move |Json(payload): Json<Value>| {
+                    let sender_clone_for_call = event_sender_for_webhook.clone();
+                    async move {
+                        debug!("WebHook 接收到 payload: {payload:?}");
+                        if let Err(e) = Self::handle_event_message(
+                            OriginalMessage::WebHook(payload),
+                            sender_clone_for_call,
+                        )
+                        .await
+                        {
+                            warn!("处理 WebHook 事件消息时出错: {e:?}");
+                            // 返回一个错误响应给调用方
+                            (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                format!("Failed to process webhook: {e:?}"),
+                            )
+                        } else {
+                            // 返回成功响应
+                            (StatusCode::OK, "Webhook received successfully".to_string())
+                        }
                     }
                 };
 
-                match stream.next().await {
-                    Some(Ok(message)) => {
-                        if let Err(e) =
-                            Self::handle_event_message(message, event_sender_clone.clone()).await
-                        {
-                            warn!("处理事件消息时出错: {:?}", e);
+                let app = Router::new().route("/webhook", post(axum_webhook_handler));
+
+                tokio::spawn(async move {
+                    info!("尝试在 {webhook_listen_address} 上启动 WebHook 事件接收服务器。",);
+
+                    let listener =
+                        match tokio::net::TcpListener::bind(&webhook_listen_address).await {
+                            Ok(l) => l,
+                            Err(e) => {
+                                error!("无法将 WebHook 监听器绑定到 {webhook_listen_address}: {e}");
+                                return;
+                            }
+                        };
+                    let actual_listen_addr = listener
+                        .local_addr()
+                        .map_or_else(|_| webhook_listen_address.clone(), |addr| addr.to_string());
+                    info!("WebHook 事件接收服务器正在监听: http://{actual_listen_addr}");
+
+                    let shutdown_signal = async {
+                        let ctrl_c = async {
+                            tokio::signal::ctrl_c()
+                                .await
+                                .expect("安装 Ctrl+C 处理器失败");
+                        };
+
+                        #[cfg(unix)]
+                        let terminate = async {
+                            tokio::signal::unix::signal(
+                                tokio::signal::unix::SignalKind::terminate(),
+                            )
+                            .expect("安装信号处理器失败")
+                            .recv()
+                            .await;
+                        };
+
+                        #[cfg(not(unix))]
+                        let terminate = std::future::pending::<()>();
+
+                        tokio::select! {
+                            _ = ctrl_c => info!("Ctrl+C信号接收，开始关闭 WebHook 服务器..."),
+                            _ = terminate => info!("SIGTERM信号接收，开始关闭 WebHook 服务器..."),
                         }
+                        info!("WebHook 服务器关闭信号已触发。");
+                    };
+
+                    if let Err(e) = axum::serve(listener, app.into_make_service())
+                        .with_graceful_shutdown(shutdown_signal)
+                        .await
+                    {
+                        error!("WebHook 事件接收服务器遇到错误: {e:?}");
                     }
-                    Some(Err(e)) => {
-                        error!("接收事件消息时出错: {:?}", e);
-                        *guard = None;
-                        break;
-                    }
-                    None => {
-                        info!("服务器关闭了事件 WebSocket 连接。");
-                        *guard = None;
-                        break;
-                    }
-                }
+                    info!("WebHook 事件接收服务器已关闭。");
+                });
+                info!("WebHook 事件接收服务器已安排在后台运行。");
             }
-            info!("WebSocket 事件读取循环已结束。");
-        });
+        };
 
         Ok(())
     }
 
-    /// 处理从WebSocket接收到的单个事件消息。
+    /// 处理接收到的单个事件消息。
     ///
     /// 此方法会解析消息内容，如果消息是文本类型并且可以成功反序列化为 [`Event`]，
     /// 则通过 `event_sender` 将事件发送出去。
     ///
     /// # 参数
-    /// * `msg`: 从WebSocket接收到的原始 [`WsMessage`]。
+    /// * `msg`: 接收到的原始 [`OriginalMessage`]。
     /// * `event_sender`: 用于发送解析后事件的mpsc通道发送端。
     ///
     /// # 返回
     /// 成功处理则返回 `Ok(())`，否则返回错误（主要是在发送事件到通道失败时）。
-    async fn handle_event_message(msg: WsMessage, event_sender: mpsc::Sender<Event>) -> Result<()> {
+    async fn handle_event_message(
+        msg: OriginalMessage,
+        event_sender: mpsc::Sender<Event>,
+    ) -> Result<()> {
         match msg {
-            WsMessage::Text(text) => {
-                debug!("接收到事件文本: {}", text);
-                match serde_json::from_str::<Event>(&text) {
+            OriginalMessage::Ws(ws_msg) => match ws_msg {
+                WsMessage::Text(text) => {
+                    debug!("接收到事件文本: {text}",);
+                    match serde_json::from_str::<Event>(&text) {
+                        Ok(event) => {
+                            if event_sender.send(event).await.is_err() {
+                                error!("事件接收端已关闭，无法发送事件。");
+                            }
+                        }
+                        Err(e) => {
+                            warn!("无法将消息解析为已知的 Event 类型: {e}。原始文本: {text}");
+                        }
+                    }
+                }
+                WsMessage::Binary(_) => {
+                    info!("在事件流上接收到二进制数据 (未处理)。");
+                }
+                WsMessage::Ping(_) => {
+                    debug!("在事件流上接收到 Ping 帧。");
+                }
+                WsMessage::Pong(_) => {
+                    debug!("在事件流上接收到 Pong 帧。");
+                }
+                WsMessage::Close(close_frame) => {
+                    info!("在事件流上接收到 Close 帧: {close_frame:?}",);
+                }
+                WsMessage::Frame(_) => {
+                    debug!("在事件流上接收到原始 Frame (未处理)。");
+                }
+            },
+            OriginalMessage::WebHook(wh_msg) => {
+                let msg = wh_msg.clone();
+                match serde_json::from_value::<Event>(wh_msg) {
                     Ok(event) => {
                         if event_sender.send(event).await.is_err() {
                             error!("事件接收端已关闭，无法发送事件。");
                         }
                     }
                     Err(e) => {
-                        warn!(
-                            "无法将消息解析为已知的 Event 类型: {:?}。原始文本: {}",
-                            e, text
-                        );
+                        warn!("无法将消息解析为已知的 Event 类型: {e}。原始文本: {msg:?}");
                     }
                 }
-            }
-            WsMessage::Binary(_) => {
-                info!("在事件流上接收到二进制数据 (未处理)。");
-            }
-            WsMessage::Ping(_) => {
-                debug!("在事件流上接收到 Ping 帧。");
-            }
-            WsMessage::Pong(_) => {
-                debug!("在事件流上接收到 Pong 帧。");
-            }
-            WsMessage::Close(close_frame) => {
-                info!("在事件流上接收到 Close 帧: {:?}", close_frame);
-            }
-            WsMessage::Frame(_) => {
-                debug!("在事件流上接收到原始 Frame (未处理)。");
             }
         }
         Ok(())
@@ -229,7 +437,7 @@ impl MilkyClient {
     ) -> Result<R> {
         // 构建完整的API URL
         let full_api_url = self.api_base_url.join(action)?;
-        debug!("正在发送 API 请求至: {}", full_api_url);
+        debug!("正在发送 API 请求至: {full_api_url}",);
 
         // 构建HTTP POST请求
         let mut request_builder = self.http_client.post(full_api_url);
@@ -265,29 +473,5 @@ impl MilkyClient {
                 message: error_message,
             })
         }
-    }
-
-    /// 关闭当前的WebSocket事件流连接。
-    ///
-    /// 如果连接存在，则会尝试发送一个Close帧并等待关闭完成。
-    ///
-    /// # 返回
-    /// 成功关闭或连接本就不存在则返回 `Ok(())`。如果在关闭过程中发生错误，则会记录警告。
-    pub async fn close_event_stream(&self) -> Result<()> {
-        info!("正在关闭 WebSocket 事件流。");
-        let mut guard = self.ws_stream.lock().await;
-        if let Some(mut stream) = guard.take() {
-            if let Err(e) = stream
-                .close(Some(CloseFrame {
-                    code: CloseCode::Normal,
-                    reason: "关闭事件流".into(),
-                }))
-                .await
-            {
-                warn!("关闭 WebSocket 事件流时出错: {:?}", e);
-            }
-        }
-        info!("WebSocket 事件流已关闭。");
-        Ok(())
     }
 }

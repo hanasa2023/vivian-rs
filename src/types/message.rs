@@ -2,6 +2,12 @@ pub mod in_coming;
 pub mod out_going;
 
 use crate::types::message::in_coming::IncomingSegment;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
+
+pub enum OriginalMessage {
+    Ws(WsMessage),
+    WebHook(serde_json::Value),
+}
 
 /// 从消息段列表中提取所有文本内容并拼接成一个字符串。
 ///

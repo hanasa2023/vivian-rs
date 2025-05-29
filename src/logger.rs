@@ -32,8 +32,7 @@ use std::io::Write;
 /// 3. 默认级别 `LevelFilter::Info` (如果 `RUST_LOG` 未设置且 `filter` 参数为 `None`)。
 ///
 /// # 参数
-/// * `filter`: 可选的日志级别过滤器 (`LevelFilter`)。如果为 `None` 且 `RUST_LOG` 环境变量未设置，
-///             则默认使用 `LevelFilter::Info`。
+/// * `filter`: 可选的日志级别过滤器 (`LevelFilter`)。如果为 `None` 且 `RUST_LOG` 环境变量未设置，则默认使用 `LevelFilter::Info`。
 pub fn init_logger(filter: Option<LevelFilter>) {
     let mut builder = formatted_builder();
 

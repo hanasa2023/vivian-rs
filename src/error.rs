@@ -17,7 +17,7 @@ pub enum MilkyError {
     /// WebSocket 通信过程中发生的错误。
     /// 通常由底层的 `tokio-tungstenite` 库引发。
     #[error("WebSocket 错误: {0}")]
-    WebSocket(#[from] tungstenite::Error),
+    WebSocket(#[from] Box<tungstenite::Error>),
 
     /// URL 解析失败时发生的错误。
     /// 例如，当提供的服务器地址或API端点格式不正确时。
@@ -82,6 +82,9 @@ pub enum MilkyError {
     /// 例如，网络连接问题、DNS解析失败等。
     #[error("HTTP 请求错误: {0}")]
     Reqwest(#[from] reqwest::Error),
+
+    #[error("内部错误: {0}")]
+    Internal(String),
 }
 
 /// 一个统一的 `Result` 类型别名，用于 `MilkyClient` 的所有操作。
