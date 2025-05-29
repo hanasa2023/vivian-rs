@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use log::{LevelFilter, error, info};
 use tokio::sync::mpsc;
-use vivian::logger; // 确保 logger 模块被正确引用
-use vivian::types::message::get_plain_text_from_segments; // 辅助函数
+use vivian::types::message::get_plain_text_from_segments;
 use vivian::types::message::out_going::{OutgoingSegment, TextData};
-use vivian::{Event, EventKind, MilkyClient, Result};
+use vivian::{Communication, Event, EventKind, MilkyClient, Result};
+use vivian::{WebHookConfig, logger};
 
 // 辅助函数，用于创建文本消息段
 fn text_segment(text: &str) -> OutgoingSegment {
@@ -22,14 +22,16 @@ async fn main() -> Result<()> {
     let (event_tx, mut event_rx) = mpsc::channel::<Event>(100);
 
     // 2. 初始化 MilkyClient
-    //    请将 "http://127.0.0.1:3000" 替换为您的 Milky 服务器的实际 HTTP 地址。
-    //    第二个参数是可选的 access_token。
-    let client = MilkyClient::new("http://127.0.0.1:3000", None, event_tx)?;
+    // 示例中使用的是WebHook的通信方式，如果你想通过WebSocket方式与服务端通信，可以参考下面的代码
+    // let ws_config = WebSocketConfig::new("ws://127.0.0.1:3000".to_string(), None);
+    // let client = MilkyClient::new(Communication::WebSocket(ws_config), event_tx)?;
+    let wh_config = WebHookConfig::new(None, 8080, "http://127.0.0.1:3000".to_string(), None);
+    let client = MilkyClient::new(Communication::WebHook(wh_config), event_tx)?;
     let client = Arc::new(client);
 
-    // 3. 连接到 WebSocket 事件流
+    // 3. 连接到件流
     if let Err(e) = client.connect_events().await {
-        error!("未能连接到事件流: {:?}", e);
+        error!("未能连接到事件流: {e:?}");
         return Err(e);
     }
     info!("成功连接到 Milky 服务器事件流。");
@@ -39,7 +41,7 @@ async fn main() -> Result<()> {
     let _event_handle = tokio::spawn(async move {
         info!("事件监听器已启动。");
         while let Some(event) = event_rx.recv().await {
-            info!("收到事件: {:?}", event); // 打印原始事件
+            info!("收到事件: {event:?}",); // 打印原始事件
 
             match event.kind {
                 EventKind::MessageReceive(incoming_msg) => {
@@ -57,7 +59,7 @@ async fn main() -> Result<()> {
                             .await
                         {
                             Ok(resp) => info!("自动回复成功: seq={}", resp.message_seq),
-                            Err(e) => error!("自动回复失败: {:?}", e),
+                            Err(e) => error!("自动回复失败: {e:?}",),
                         }
                     }
                 }
@@ -84,7 +86,7 @@ async fn main() -> Result<()> {
             );
         }
         Err(e) => {
-            error!("未能获取登录信息: {:?}", e);
+            error!("未能获取登录信息: {e:?}",);
         }
     }
 
@@ -102,7 +104,7 @@ async fn main() -> Result<()> {
             );
         }
         Err(e) => {
-            error!("未能发送私聊消息至 {}: {:?}", user_id_to_send, e);
+            error!("未能发送私聊消息至 {user_id_to_send}: {e:?}");
         }
     }
 
@@ -110,10 +112,6 @@ async fn main() -> Result<()> {
     info!("示例正在运行。按 Ctrl-C 退出。");
     tokio::signal::ctrl_c().await?; // 等待 Ctrl-C信号
     info!("收到 Ctrl-C，正在关闭...");
-
-    // 6. 关闭事件流
-    client.close_event_stream().await?;
-    info!("客户端事件流已关闭。");
 
     Ok(())
 }

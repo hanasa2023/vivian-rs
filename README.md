@@ -9,19 +9,19 @@ Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 "Mi
 
 ## 特性
 
-*   **异步客户端**: 基于 `tokio` 构建，所有API调用和事件处理都是异步的。
-*   **全面的API覆盖**:
-    *   **消息处理**: 发送和接收私聊、群聊消息，获取历史消息，撤回消息，处理消息段（文本、图片、@提及、表情等）。
-    *   **群组管理**: 创建、查询、修改群信息，管理群成员（邀请、踢出、禁言、设置管理员），处理群公告、群文件等。
-    *   **好友互动**: 发送戳一戳，资料卡点赞。
-    *   **文件操作**: 上传和下载私聊及群文件，管理群文件和文件夹。
-    *   **请求处理**: 同意或拒绝好友请求、加群请求。
-    *   **系统信息**: 获取登录信息、好友列表、群列表等。
-*   **实时事件处理**: 通过 WebSocket 接收服务器推送的各类事件，如新消息、用户加入/退出群组等。
-*   **强类型接口**: 所有API请求参数和响应数据都有明确的Rust结构体定义，利用 `serde`进行序列化和反序列化，确保类型安全。
-*   **自定义日志**: 内置可定制的日志记录器 (`logger.rs`)，支持彩色输出和级别过滤。
-*   **错误处理**: 定义了详细的错误类型 `MilkyError` (`error.rs`) 和统一的 `Result<T>`，方便错误处理。
-*   **模块化设计**: 清晰的模块划分，包括 `client` (核心客户端)、`api` (各API端点实现)、`types` (数据结构定义)、`error` (错误处理) 和 `logger` (日志模块)。
+- **异步客户端**: 基于 `tokio` 构建，所有API调用和事件处理都是异步的。
+- **全面的API覆盖**:
+  - **消息处理**: 发送和接收私聊、群聊消息，获取历史消息，撤回消息，处理消息段（文本、图片、@提及、表情等）。
+  - **群组管理**: 创建、查询、修改群信息，管理群成员（邀请、踢出、禁言、设置管理员），处理群公告、群文件等。
+  - **好友互动**: 发送戳一戳，资料卡点赞。
+  - **文件操作**: 上传和下载私聊及群文件，管理群文件和文件夹。
+  - **请求处理**: 同意或拒绝好友请求、加群请求。
+  - **系统信息**: 获取登录信息、好友列表、群列表等。
+- **实时事件处理**: 通过 WebSocket 接收服务器推送的各类事件，如新消息、用户加入/退出群组等。
+- **强类型接口**: 所有API请求参数和响应数据都有明确的Rust结构体定义，利用 `serde`进行序列化和反序列化，确保类型安全。
+- **自定义日志**: 内置可定制的日志记录器 (`logger.rs`)，支持彩色输出和级别过滤。
+- **错误处理**: 定义了详细的错误类型 `MilkyError` (`error.rs`) 和统一的 `Result<T>`，方便错误处理。
+- **模块化设计**: 清晰的模块划分，包括 `client` (核心客户端)、`api` (各API端点实现)、`types` (数据结构定义)、`error` (错误处理) 和 `logger` (日志模块)。
 
 ## 快速开始
 
@@ -58,10 +58,10 @@ use std::sync::Arc;
 
 use log::{LevelFilter, error, info};
 use tokio::sync::mpsc;
-use vivian::logger; // 确保 logger 模块被正确引用
-use vivian::types::message::get_plain_text_from_segments; // 辅助函数
+use vivian::types::message::get_plain_text_from_segments;
 use vivian::types::message::out_going::{OutgoingSegment, TextData};
-use vivian::{Event, EventKind, MilkyClient, Result};
+use vivian::{Communication, Event, EventKind, MilkyClient, Result};
+use vivian::{WebHookConfig, logger};
 
 // 辅助函数，用于创建文本消息段
 fn text_segment(text: &str) -> OutgoingSegment {
@@ -78,12 +78,13 @@ async fn main() -> Result<()> {
     let (event_tx, mut event_rx) = mpsc::channel::<Event>(100);
 
     // 2. 初始化 MilkyClient
-    //    请将 "http://127.0.0.1:3000" 替换为您的 Milky 服务器的实际 HTTP 地址。
-    //    第二个参数是可选的 access_token。
-    let client = MilkyClient::new("http://127.0.0.1:3000", None, event_tx)?;
-    let client = Arc::new(client);
+    // 示例中使用的是WebHook的通信方式，如果你想通过WebSocket方式与服务端通信，可以参考下面的代码
+    // let ws_config = WebSocketConfig::new("ws://127.0.0.1:3000".to_string(), None);
+    // let client = MilkyClient::new(Communication::WebSocket(ws_config), event_tx)?;
+    let wh_config = WebHookConfig::new(None, 8080, "http://127.0.0.1:3000".to_string(), None);
+    let client = MilkyClient::new(Communication::WebHook(wh_config), event_tx)?;
 
-    // 3. 连接到 WebSocket 事件流
+    // 3. 连接到事件流
     if let Err(e) = client.connect_events().await {
         error!("未能连接到事件流: {:?}", e);
         return Err(e);
@@ -167,10 +168,6 @@ async fn main() -> Result<()> {
     tokio::signal::ctrl_c().await?; // 等待 Ctrl-C信号
     info!("收到 Ctrl-C，正在关闭...");
 
-    // 6. 关闭事件流
-    client.close_event_stream().await?;
-    info!("客户端事件流已关闭。");
-
     Ok(())
 }
 
@@ -178,20 +175,20 @@ async fn main() -> Result<()> {
 
 ## 主要模块和类型
 
-*   **`MilkyClient`**: SDK 的核心客户端，用于所有API调用和事件连接。
-*   **`Event` 和 `EventKind`**: 定义了从服务器接收到的各种事件及其具体数据。
-*   **消息段 (`IncomingSegment`, `OutgoingSegment`)**: 消息内容的组成部分，如文本 (`TextData`)、图片 (`ImageData`)、@提及 (`MentionData`) 等。
-    *   `types::message::get_plain_text_from_segments(&Vec<IncomingSegment>) -> String`: 一个实用函数，用于从消息段列表中提取并拼接所有纯文本内容。
-*   **API模块 (`vivian::api::*`)**:
-    *   `file`: 私聊和群文件的上传、下载、管理。
-    *   `friend`: 好友互动，如戳一戳、点赞。
-    *   `group`: 群组管理，如设置群信息、管理成员、群公告、禁言、踢人等。
-    *   `message`: 消息的发送、获取、撤回等。
-    *   `request`: 处理好友请求和加群请求。
-    *   `system`: 获取登录信息、好友/群列表等。
-*   **错误处理**:
-    *   `MilkyError`: SDK操作中可能发生的各种错误。
-    *   `Result<T>`: `std::result::Result<T, MilkyError>` 的别名。
+- **`MilkyClient`**: SDK 的核心客户端，用于所有API调用和事件连接。
+- **`Event` 和 `EventKind`**: 定义了从服务器接收到的各种事件及其具体数据。
+- **消息段 (`IncomingSegment`, `OutgoingSegment`)**: 消息内容的组成部分，如文本 (`TextData`)、图片 (`ImageData`)、@提及 (`MentionData`) 等。
+  - `types::message::get_plain_text_from_segments(&Vec<IncomingSegment>) -> String`: 一个实用函数，用于从消息段列表中提取并拼接所有纯文本内容。
+- **API模块 (`vivian::api::*`)**:
+  - `file`: 私聊和群文件的上传、下载、管理。
+  - `friend`: 好友互动，如戳一戳、点赞。
+  - `group`: 群组管理，如设置群信息、管理成员、群公告、禁言、踢人等。
+  - `message`: 消息的发送、获取、撤回等。
+  - `request`: 处理好友请求和加群请求。
+  - `system`: 获取登录信息、好友/群列表等。
+- **错误处理**:
+  - `MilkyError`: SDK操作中可能发生的各种错误。
+  - `Result<T>`: `std::result::Result<T, MilkyError>` 的别名。
 
 ## 日志
 
