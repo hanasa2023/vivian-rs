@@ -1,0 +1,51 @@
+name: Publish to creates.io
+
+on:
+  push:
+    tags:
+      - "v.*.*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build binaries in release mode
+        run: cargo build --release
+
+      - name: Run tests in release mode
+        run: cargo test --release
+
+      - name: Login into crates.io
+        run: cargo login ${{ secrets.CRATES_IO }}
+
+      - name: Package for crates.io
+        run: cargo package
+
+      - name: Publish to crates.io
+        run: cargo publish
+
+      - name: Changelog
+        uses: Bullrich/generate-release-changelog@master
+        id: Changelog
+        env:
+          REPO: ${{ github.repository }}
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            ${{ steps.Changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
