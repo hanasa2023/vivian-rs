@@ -42,6 +42,10 @@ pub struct Event {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "event_type", content = "data")]
 pub enum EventKind {
+    /// 机器人下线事件
+    #[serde(rename = "bot_offline")]
+    BotOffline(BotOfflineData)
+
     /// 当接收到消息时触发的事件。
     #[serde(rename = "message_receive")]
     MessageReceive(IncomingMessage),
@@ -55,13 +59,8 @@ pub enum EventKind {
     FriendRequest(FriendRequestData),
 
     /// 当用户请求加入群组时触发的事件。
-    #[serde(rename = "group_join_request")]
-    GroupJoinRequest(GroupJoinRequestData),
-
-    /// 当用户被群成员邀请加入群组时触发的事件。
-    /// 通常需要管理员批准。
-    #[serde(rename = "group_invited_join_request")]
-    GroupInvitedJoinRequest(GroupInvitedJoinRequestData),
+    #[serde(rename = "group_request")]
+    GroupRequest(GroupRequestData),
 
     /// 当机器人被邀请加入群组时触发的事件。
     #[serde(rename = "group_invitation_request")]
@@ -116,6 +115,13 @@ pub enum EventKind {
     GroupFileUpload(GroupFileUploadData),
 }
 
+/// 与 `BotOffline` 事件关联的数据
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BotOfflineData {
+    /// 下线原因
+    pub reason: String,
+}
+
 /// 与 `MessageRecall` 事件关联的数据。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageRecallData {
@@ -136,8 +142,14 @@ pub struct MessageRecallData {
 pub struct FriendRequestData {
     /// 此好友请求的唯一ID，用于同意或拒绝请求。
     pub request_id: String,
+    /// 请求发起时的时间戳
+    pub time: i64,
+    /// 请求是否被过滤
+    pub is_filtered: bool,
     /// 发起好友请求的用户的QQ号。
-    pub operator_id: i64,
+    pub initiator_id: i64,
+    /// 请求状态，可能值 `pending`, `accepted`, `rejected`, `ignored`
+    pub state: String,
     /// 好友请求附带的可选评论或消息。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
@@ -149,16 +161,24 @@ pub struct FriendRequestData {
 /// 与 `GroupJoinRequest` 事件关联的数据。
 /// 这是指用户主动申请加入群组的情况。
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GroupJoinRequestData {
+pub struct GroupRequestData {
     /// 此加群请求的唯一ID，用于同意或拒绝请求。
     pub request_id: String,
-    /// 请求加入群组的用户的QQ号。
-    pub operator_id: i64,
+    /// 请求发起时的Unix时间戳
+    pub time: i64,
+    /// 请求是否被过滤
+    pub is_filtered: bool,
+    /// 发起请求的用户QQ号。
+    pub initiator_id: i64,
+    /// 请求状态
+    pub state: String,
     /// 用户希望加入的群组的ID。
     pub group_id: i64,
-    /// 加群请求附带的可选评论或消息。
+    /// 处理请求的用户QQ号(可选)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub comment: Option<String>,
+    pub operator_id: i64,
+    /// 类型标识符
+    pub request_type: String,
 }
 
 /// 与 `GroupInvitedJoinRequest` 事件关联的数据。
@@ -176,14 +196,21 @@ pub struct GroupInvitedJoinRequestData {
     pub invitee_id: i64,
 }
 
+// TODO: 请求状态使用enum
 /// 与 `GroupInvitationRequest` 事件关联的数据。
 /// 这是指机器人本身被邀请加入群组的情况。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GroupInvitationRequestData {
     /// 此邀请请求的唯一ID，用于同意或拒绝请求。
     pub request_id: String,
-    /// 邀请机器人加入群组的用户的QQ号。
-    pub operator_id: i64,
+    /// 请求发起时的时间戳
+    pub time: i64,
+    /// 请求是否被过滤
+    pub is_filtered: bool,
+    /// 发起请求的用户QQ号。
+    pub initiator_id: i64,
+    /// 请求状态，可能值 `pending`, `accepted`, `rejected`, `ignored`
+    pub state: String,
     /// 机器人被邀请加入的群组的ID。
     pub group_id: i64,
 }
