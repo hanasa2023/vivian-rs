@@ -8,7 +8,9 @@
   packages = [
     pkgs.fish
     pkgs.rustup
+    pkgs.pkg-config
     pkgs.gcc
+    pkgs.openssh
   ];
 
   # Sets environment variables in the workspace
