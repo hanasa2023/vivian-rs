@@ -44,7 +44,7 @@ pub struct Event {
 pub enum EventKind {
     /// 机器人下线事件
     #[serde(rename = "bot_offline")]
-    BotOffline(BotOfflineData)
+    BotOffline(BotOfflineData),
 
     /// 当接收到消息时触发的事件。
     #[serde(rename = "message_receive")]
