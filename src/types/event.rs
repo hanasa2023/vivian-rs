@@ -4,7 +4,7 @@
 //! 以及一个 [`EventKind`] 枚举，用于指定事件的实际类型及其关联数据。
 //! 各种 `...Data` 结构体则持有每种事件类型的具体信息。
 
-use crate::types::message::in_coming::IncomingMessage;
+use crate::types::{common::MessageScene, message::in_coming::IncomingMessage};
 use serde::{Deserialize, Serialize};
 
 /// 代表从平台接收到的通用事件。
@@ -42,6 +42,10 @@ pub struct Event {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "event_type", content = "data")]
 pub enum EventKind {
+    /// 机器人离线事件
+    #[serde(rename = "bot_offline")]
+    BotOffline(BotOfflineData),
+
     /// 当接收到消息时触发的事件。
     #[serde(rename = "message_receive")]
     MessageReceive(IncomingMessage),
@@ -65,7 +69,7 @@ pub enum EventKind {
 
     /// 当机器人被邀请加入群组时触发的事件。
     #[serde(rename = "group_invitation_request")]
-    GroupInvitationRequest(GroupInvitationRequestData),
+    GroupInvitationRequest(GroupInvitationData),
 
     /// 当好友发送“戳一戳”互动时触发的事件。
     #[serde(rename = "friend_nudge")]
@@ -116,11 +120,17 @@ pub enum EventKind {
     GroupFileUpload(GroupFileUploadData),
 }
 
+/// 与 `BotOffline` 事件关联的数据。
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BotOfflineData {
+    pub reason: String,
+}
+
 /// 与 `MessageRecall` 事件关联的数据。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageRecallData {
     /// 消息被撤回的场景（例如："friend", "group", "temp"）。
-    pub message_scene: String,
+    pub message_scene: MessageScene,
     /// 消息被撤回的好友QQ号或群号。
     pub peer_id: i64,
     /// 被撤回消息的序列号。
@@ -134,70 +144,64 @@ pub struct MessageRecallData {
 /// 与 `FriendRequest` 事件关联的数据。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FriendRequestData {
-    /// 此好友请求的唯一ID，用于同意或拒绝请求。
-    pub request_id: String,
-    /// 发起好友请求的用户的QQ号。
-    pub operator_id: i64,
-    /// 好友请求附带的可选评论或消息。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub comment: Option<String>,
-    /// 可选字段，指示好友请求的来源或方式（例如："group_search"）。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub via: Option<String>,
+    /// 申请好友的用户 QQ 号
+    pub initiator_id: String,
+    /// 用户 UID
+    pub initiator_uid: i64,
+    /// 申请附加信息
+    pub comment: String,
+    /// 申请来源
+    pub via: String,
 }
 
 /// 与 `GroupJoinRequest` 事件关联的数据。
 /// 这是指用户主动申请加入群组的情况。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GroupJoinRequestData {
-    /// 此加群请求的唯一ID，用于同意或拒绝请求。
-    pub request_id: String,
-    /// 请求加入群组的用户的QQ号。
-    pub operator_id: i64,
-    /// 用户希望加入的群组的ID。
+    /// 群号
     pub group_id: i64,
-    /// 加群请求附带的可选评论或消息。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub comment: Option<String>,
+    /// 请求对应的通知序列号
+    pub notification_seq: i64,
+    /// 请求是否被过滤（发起自风险账户）
+    pub is_filtered: bool,
+    /// 申请入群的用户 QQ 号
+    pub initiator_id: i64,
+    /// 申请附加信息
+    pub comment: String,
 }
 
 /// 与 `GroupInvitedJoinRequest` 事件关联的数据。
-/// 这是指现有群成员邀请外部用户加入群组的情况。
-/// 此类请求通常需要群管理员或机器人（如果拥有权限）的批准。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GroupInvitedJoinRequestData {
-    /// 此邀请请求的唯一ID，用于同意或拒绝请求。
-    pub request_id: String,
-    /// 发起邀请的群成员的QQ号。
-    pub operator_id: i64,
-    /// 用户被邀请加入的群组的ID。
+    /// 群号
     pub group_id: i64,
-    /// 被邀请加入群组的用户的QQ号。
-    pub invitee_id: i64,
+    /// 请求对应的通知序列号
+    pub notification_seq: i64,
+    /// 邀请者 QQ 号
+    pub initiator_id: i64,
+    /// 被邀请者 QQ 号
+    pub target_user_id: i64,
 }
 
 /// 与 `GroupInvitationRequest` 事件关联的数据。
-/// 这是指机器人本身被邀请加入群组的情况。
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GroupInvitationRequestData {
-    /// 此邀请请求的唯一ID，用于同意或拒绝请求。
-    pub request_id: String,
-    /// 邀请机器人加入群组的用户的QQ号。
-    pub operator_id: i64,
-    /// 机器人被邀请加入的群组的ID。
+pub struct GroupInvitationData {
+    /// 群号
     pub group_id: i64,
+    /// 邀请序列号
+    pub invitation_seq: i64,
+    /// 邀请者 QQ 号
+    pub initiator_id: i64,
 }
 
 /// 与 `FriendNudge`（好友戳一戳）事件关联的数据。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FriendNudgeData {
-    /// 参与戳一戳的好友的QQ号。
-    /// 如果 `is_self_send` 为true，则此为接收方。
-    /// 如果 `is_self_receive` 为true，则此为发送方。
+    /// 好友 QQ 号
     pub user_id: i64,
-    /// 如果是机器人发送的戳一戳，则为true，否则为false。
+    /// 是否是自己发送的戳一戳
     pub is_self_send: bool,
-    /// 如果是机器人接收的戳一戳，则为true，否则为false。
+    /// 是否是自己接收的戳一戳
     pub is_self_receive: bool,
 }
 
@@ -212,6 +216,8 @@ pub struct FriendFileUploadData {
     pub file_name: String,
     /// 上传文件的大小（字节）。
     pub file_size: i64,
+    /// 文件的 TriSHA1 哈希值
+    pub file_hash: String,
     /// 如果是机器人上传的文件，则为true；如果是好友上传的，则为false。
     pub is_self: bool,
 }
@@ -271,7 +277,7 @@ pub struct GroupNameChangeData {
     /// 名称被更改的群组ID。
     pub group_id: i64,
     /// 群组的新名称。
-    pub name: String,
+    pub group_new_name: String,
     /// 更改群名称的用户的QQ号。
     pub operator_id: i64,
 }
@@ -287,10 +293,8 @@ pub struct GroupMessageReactionData {
     pub message_seq: i64,
     /// 表态表情/face的ID。
     pub face_id: String,
-    /// 如果表态是添加的，则为true；如果是移除的，则为false。
-    /// 此字段可能根据平台是可选的；如果为None，则默认为true。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub is_add: Option<bool>,
+    /// 是否为添加，`false` 表示取消回应
+    pub is_add: bool,
 }
 
 /// 与 `GroupMute`（群禁言特定成员）事件关联的数据。

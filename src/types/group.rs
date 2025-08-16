@@ -1,14 +1,23 @@
 //! 定义与群组及其相关信息（如成员、公告、文件等）的数据结构。
 
+use crate::{in_coming::IncomingSegment, types::common::Sex};
 use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub enum GroupRole {
+    Owner,
+    Admin,
+    #[default]
+    Member,
+}
 
 /// 代表一个群组的基本信息。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Group {
-    /// 群组的唯一标识符（群号）。
+    /// 群号。
     pub group_id: i64,
     /// 群组的名称。
-    pub name: String,
+    pub group_name: String,
     /// 当前群组的成员数量。
     pub member_count: i32,
     /// 群组的最大成员容量。
@@ -18,35 +27,60 @@ pub struct Group {
 /// 代表一个群组成员的详细信息。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GroupMember {
-    /// 该成员所属群组的唯一标识符（群号）。
-    pub group_id: i64,
-    /// 成员的QQ号。
+    /// 用户QQ号。
     pub user_id: i64,
-    /// 成员在群组中显示的昵称。
+    /// 用户昵称。
     pub nickname: String,
-    /// 成员在群组中的备注名（群名片）。
-    pub card: String,
-    /// 成员的专属头衔（可选）。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// 成员的性别。
+    /// 用户性别。
     /// 可能的值包括: "male" (男), "female" (女), "unknown" (未知)。
-    pub sex: String,
-    /// 成员在群内的等级（注意与QQ等级区分）。
+    pub sex: Sex,
+    /// 群号。
+    pub group_id: i64,
+    /// 成员备注。
+    pub card: String,
+    /// 专属头衔。
+    pub title: String,
+    /// 群等级（注意与QQ等级区分）。
     pub level: i32,
-    /// 成员在群内的权限角色。
+    /// 权限等级。
     /// 可能的值包括: "owner" (群主), "admin" (管理员), "member" (普通成员)。
-    pub role: String,
-    /// 成员加入群组的时间，表示为Unix时间戳（秒）。
+    pub role: GroupRole,
+    /// 加入群组时间，表示为Unix时间戳（秒）。
     pub join_time: i64,
-    /// 成员最后发言的时间，表示为Unix时间戳（秒）。
+    /// 最后发言时间，表示为Unix时间戳（秒）。
     pub last_sent_time: i64,
+    /// 禁言结束时间，表示为Unix时间戳（秒）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shut_up_end_time: Option<i64>,
+}
+
+/// 群精华消息
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct GroupEssenceMessage {
+    /// 群号
+    pub group_id: i64,
+    /// 消息序列号
+    pub message_seq: i64,
+    /// 消息发送时的 Unix 时间戳（秒）
+    pub message_time: i64,
+    /// 发送者 QQ 号
+    pub sender_id: i64,
+    /// 发送者名称
+    pub sender_name: String,
+    /// 设置精华的操作者 QQ 号
+    pub operator_id: i64,
+    /// 设置精华的操作者名称
+    pub operator_name: String,
+    /// 消息被设置精华时的 Unix 时间戳（秒）
+    pub operation_time: i64,
+    /// 消息段列表
+    pub segments: Vec<IncomingSegment>,
 }
 
 /// 代表一条群公告的信息。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GroupAnnouncement {
-    /// 该公告所属群组的唯一标识符（群号）。
+    /// 群号。
     pub group_id: i64,
     /// 公告的唯一ID。
     pub announcement_id: String,
@@ -70,9 +104,8 @@ pub struct GroupFile {
     pub file_id: String,
     /// 文件的名称。
     pub file_name: String,
-    /// 文件所在的父文件夹ID（可选，如果文件位于根目录则可能为None）。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_folder_id: Option<String>,
+    /// 父文件夹ID
+    pub parent_folder_id: String,
     /// 文件的大小（字节）。
     pub file_size: i64,
     /// 文件上传的时间，表示为Unix时间戳（秒）。
@@ -92,9 +125,8 @@ pub struct GroupFolder {
     pub group_id: i64,
     /// 文件夹的唯一ID。
     pub folder_id: String,
-    /// 文件夹所在的父文件夹ID（可选，如果文件夹位于根目录则可能为None）。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_folder_id: Option<String>,
+    /// 父文件夹ID
+    pub parent_folder_id: String,
     /// 文件夹的名称。
     pub folder_name: String,
     /// 文件夹创建的时间，表示为Unix时间戳（秒）。
@@ -106,3 +138,7 @@ pub struct GroupFolder {
     /// 文件夹中包含的文件数量。
     pub file_count: i32,
 }
+
+/// TODO: 群通知实体
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct GroupNotification {}

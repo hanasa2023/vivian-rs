@@ -12,7 +12,7 @@ pub enum Communication {
 /// WebSocket的配置项
 #[derive(Clone)]
 pub struct WebSocketConfig {
-    /// 服务端的WebSocket 接入点 e.g. `ws:127.0.0.1:3000`。
+    /// 服务端的WebSocket 接入点 e.g. `ws://127.0.0.1:3000`。
     pub ws_endpoint: String,
     /// 可选的访问令牌，用于认证。
     pub access_token: Option<String>,
@@ -22,7 +22,7 @@ impl WebSocketConfig {
     /// 创建一个新的 `WebSocketCofig` 实例。
     ///
     /// # 参数
-    /// * `ws_endpoint`: 服务端的WebSocket 接入点 e.g. `ws:127.0.0.1:3000`。
+    /// * `ws_endpoint`: 服务端的WebSocket 接入点 e.g. `ws://127.0.0.1:3000`。
     /// * `access_token`: 可选的访问令牌，用于认证。
     ///
     /// # 返回

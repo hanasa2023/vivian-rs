@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Friend, Group, GroupMember};
+use crate::{Friend, Group, GroupMember, types::common::MessageScene};
 
 /// 代表一个通用的接收消息结构。
 ///
@@ -21,7 +21,7 @@ pub struct IncomingMessage {
     /// 组成消息内容的实际数据段列表。
     pub segments: Vec<IncomingSegment>,
     /// 消息场景的类型标识符，例如 "friend", "group", "temp" 等。
-    pub message_scene: String,
+    pub message_scene: MessageScene,
 }
 
 /// 代表接收到的好友消息。
@@ -100,12 +100,13 @@ pub struct TempMessage {
 /// 注意：此结构体名可能需要根据其在合并转发消息中的确切角色进行调整。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct IncomingForwardMessage {
-    /// 该条转发消息的原始发送者QQ号。
-    pub user_id: i64,
-    /// 该条转发消息的原始发送者当时的昵称或名称。
-    pub name: String,
+    /// 发送者名称
+    pub sender_name: String,
+    /// 发送者头像URL
+    pub avatar_url: String,
+    /// 消息 Unix 时间戳（秒）
+    pub time: i64,
     /// 组成该条转发消息内容的实际数据段列表。
-    #[serde(rename = "message")]
     pub segments: Vec<IncomingSegment>,
 }
 
@@ -216,7 +217,11 @@ pub struct ImageData {
     pub resource_id: String,
     /// 临时URL
     pub temp_url: String,
-    /// 图片的预览文本或摘要（可选）。
+    /// 图片宽度
+    pub width: i32,
+    /// 图片高度
+    pub height: i32,
+    /// 图片的预览文本（可选）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
     /// 图片的子类型，例如 "normal" (普通图片), "sticker" (贴图表情) 等。
@@ -241,6 +246,12 @@ pub struct VideoData {
     pub resource_id: String,
     /// 临时URL
     pub temp_url: String,
+    /// 视频宽度
+    pub width: i32,
+    /// 视频高度
+    pub height: i32,
+    /// 视频时长（单位：秒）。
+    pub duration: i32,
 }
 
 /// 合并转发消息段的具体数据。
@@ -257,12 +268,12 @@ pub struct MarketFaceData {
     pub url: String,
 }
 
-/// 轻应用（小程序、小游戏卡片等）消息段的具体数据。
+/// 小程序消息段的具体数据。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LightAppData {
-    /// 轻应用的名称。
+    /// 小程序的名称。
     pub app_name: String,
-    /// 轻应用的JSON数据负载，具体结构由应用本身定义。
+    /// 小程序的JSON数据负载，具体结构由应用本身定义。
     pub json_payload: String,
 }
 

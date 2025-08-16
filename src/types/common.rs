@@ -32,3 +32,36 @@ pub struct ApiRequest<P> {
     /// 针对指定 `action` 的具体参数。`P` 是参数的数据结构类型。
     pub params: P,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Platform {
+    Windows,
+    Linux,
+    MacOS,
+    AndroidPad,
+    AndroidPhone,
+    Ipad,
+    IPhone,
+    Harmony,
+    Watch,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub enum Sex {
+    Male,
+    Female,
+    #[default]
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageScene {
+    /// 好友消息场景
+    Friend,
+    /// 群组消息场景
+    Group,
+    /// 临时会话消息场景
+    #[default]
+    Temp,
+}

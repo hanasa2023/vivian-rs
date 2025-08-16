@@ -14,16 +14,19 @@ pub struct UploadPrivateFileParams {
     /// 接收文件的好友QQ号。
     pub user_id: i64,
     /// 文件的统一资源标识符 (URI)。
-    /// 支持 `file:///path/to/file` (本地文件),
-    /// `http(s)://example.com/file` (网络URL),
-    /// 以及 `base64://<BASE64编码的文件数据>` (Base64编码内容)。
+    /// 支持:
+    /// - `file:///path/to/file` (本地文件),
+    /// - `http(s)://example.com/file` (网络URL),
+    /// - `base64://<BASE64编码的文件数据>` (Base64编码内容)。
     pub file_uri: String,
+    /// 文件名称
+    pub file_name: String,
 }
 
 /// 上传私聊文件的响应数据。
 #[derive(Deserialize, Debug)]
 pub struct UploadPrivateFileResponse {
-    /// 上传成功后，文件在服务器上的唯一ID。
+    /// 文件ID。
     pub file_id: String,
 }
 
@@ -32,8 +35,16 @@ pub struct UploadPrivateFileResponse {
 pub struct UploadGroupFileParams {
     /// 文件要上传到的目标群组的群号。
     pub group_id: i64,
-    /// 文件的统一资源标识符 (URI)，格式同 [`UploadPrivateFileParams::file_uri`]。
+    /// 目标文件夹ID
+    pub parent_folder_id: String,
+    /// 文件的统一资源标识符 (URI)
+    /// 支持:
+    /// - `file:///path/to/file` (本地文件),
+    /// - `http(s)://example.com/file` (网络URL),
+    /// - `base64://<BASE64编码的文件数据>` (Base64编码内容)。
     pub file_uri: String,
+    /// 文件名称
+    pub file_name: String,
 }
 
 /// 上传群文件的响应数据。
@@ -48,8 +59,10 @@ pub struct UploadGroupFileResponse {
 pub struct GetPrivateFileDownloadUrlParams {
     /// 文件所属好友的QQ号。
     pub user_id: i64,
-    /// 要获取下载链接的文件的ID。
+    /// 文件ID。
     pub file_id: String,
+    /// 文件的 TriSHA1 哈希值
+    pub file_hash: String,
 }
 
 /// 获取私聊文件下载链接的响应数据。
@@ -80,9 +93,8 @@ pub struct GetGroupFileDownloadUrlResponse {
 pub struct GetGroupFilesParams {
     /// 要查询的群组的群号。
     pub group_id: i64,
-    /// 要查询的父文件夹ID。如果为 `None` 或空字符串，则表示获取根目录下的文件和文件夹列表。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_folder_id: Option<String>,
+    /// 父文件夹ID
+    pub parent_folder_id: String,
 }
 
 /// 获取群文件列表的响应数据。
@@ -101,9 +113,10 @@ pub struct MoveGroupFileParams {
     pub group_id: i64,
     /// 要移动的文件的ID。
     pub file_id: String,
-    /// 目标文件夹的ID。如果为 `None` 或空字符串，则表示移动到根目录。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_folder_id: Option<String>,
+    /// 文件所在的文件夹 ID
+    pub parent_folder_id: String,
+    /// 目标文件夹ID
+    pub target_folder_id: String,
 }
 
 /// 重命名群文件的请求参数。
@@ -113,8 +126,10 @@ pub struct RenameGroupFileParams {
     pub group_id: i64,
     /// 要重命名的文件的ID。
     pub file_id: String,
+    /// 文件所在的文件夹 ID
+    pub parent_folder_id: String,
     /// 文件的新名称。
-    pub new_name: String,
+    pub new_file_name: String,
 }
 
 /// 删除群文件的请求参数。
@@ -150,7 +165,7 @@ pub struct RenameGroupFolderParams {
     /// 要重命名的文件夹的ID。
     pub folder_id: String,
     /// 文件夹的新名称。
-    pub new_name: String,
+    pub new_folder_name: String,
 }
 
 /// 删除群文件夹的请求参数。
@@ -168,6 +183,7 @@ impl MilkyClient {
     /// # 参数
     /// * `user_id`: 接收文件的好友QQ号。
     /// * `file_uri`: 文件的URI，支持 `file://`, `http(s)://`, `base64://` 格式。
+    /// * `file_name`: 文件名称
     ///
     /// # 返回
     /// 成功则返回包含文件ID的 [`UploadPrivateFileResponse`]。
@@ -175,8 +191,13 @@ impl MilkyClient {
         &self,
         user_id: i64,
         file_uri: String,
+        file_name: String,
     ) -> Result<UploadPrivateFileResponse> {
-        let params = UploadPrivateFileParams { user_id, file_uri };
+        let params = UploadPrivateFileParams {
+            user_id,
+            file_uri,
+            file_name,
+        };
         self.send_request("upload_private_file", params).await
     }
 
@@ -184,16 +205,26 @@ impl MilkyClient {
     ///
     /// # 参数
     /// * `group_id`: 文件要上传到的目标群组的群号。
+    /// * `parent_folder_id`: 目标文件夹 ID
     /// * `file_uri`: 文件的URI，格式同上。
+    /// * `file_name`: 文件名称
     ///
     /// # 返回
     /// 成功则返回包含文件ID的 [`UploadGroupFileResponse`]。
     pub async fn upload_group_file(
         &self,
         group_id: i64,
+        parent_folder_id: Option<String>,
         file_uri: String,
+        file_name: String,
     ) -> Result<UploadGroupFileResponse> {
-        let params = UploadGroupFileParams { group_id, file_uri };
+        let parent_folder_id = parent_folder_id.unwrap_or("/".to_string());
+        let params = UploadGroupFileParams {
+            parent_folder_id,
+            group_id,
+            file_uri,
+            file_name,
+        };
         self.send_request("upload_group_file", params).await
     }
 
@@ -202,6 +233,7 @@ impl MilkyClient {
     /// # 参数
     /// * `user_id`: 文件所属好友的QQ号。
     /// * `file_id`: 要获取下载链接的文件的ID。
+    /// * `file_hash`: 文件的 TriSHA1 哈希值
     ///
     /// # 返回
     /// 成功则返回包含下载链接的 [`GetPrivateFileDownloadUrlResponse`]。
@@ -209,8 +241,13 @@ impl MilkyClient {
         &self,
         user_id: i64,
         file_id: String,
+        file_hash: String,
     ) -> Result<GetPrivateFileDownloadUrlResponse> {
-        let params = GetPrivateFileDownloadUrlParams { user_id, file_id };
+        let params = GetPrivateFileDownloadUrlParams {
+            user_id,
+            file_id,
+            file_hash,
+        };
         self.send_request("get_private_file_download_url", params)
             .await
     }
@@ -246,6 +283,7 @@ impl MilkyClient {
         group_id: i64,
         parent_folder_id: Option<String>,
     ) -> Result<GetGroupFilesResponse> {
+        let parent_folder_id = parent_folder_id.unwrap_or("/".to_string());
         let params = GetGroupFilesParams {
             group_id,
             parent_folder_id,
@@ -258,6 +296,7 @@ impl MilkyClient {
     /// # 参数
     /// * `group_id`: 文件所属群组的群号。
     /// * `file_id`: 要移动的文件的ID。
+    /// * `parent_folder_id`: 文件所在的文件夹 ID
     /// * `target_folder_id`: 目标文件夹ID。若为 `None`，则移动到根目录。
     ///
     /// # 返回
@@ -266,22 +305,27 @@ impl MilkyClient {
         &self,
         group_id: i64,
         file_id: String,
+        parent_folder_id: Option<String>,
         target_folder_id: Option<String>,
     ) -> Result<()> {
+        let parent_folder_id = parent_folder_id.unwrap_or("/".to_string());
+        let target_folder_id = target_folder_id.unwrap_or("/".to_string());
         let params = MoveGroupFileParams {
             group_id,
             file_id,
+            parent_folder_id,
             target_folder_id,
         };
         self.send_request("move_group_file", params).await
     }
 
-    /// 重命名群文件。
+    /// 重命名群文件夹。
     ///
     /// # 参数
     /// * `group_id`: 文件所属群组的群号。
     /// * `file_id`: 要重命名的文件的ID。
-    /// * `new_name`: 文件的新名称。
+    /// * `parent_folder_id`: 文件所在的文件夹 ID
+    /// * `new_file_name`: 文件的新名称。
     ///
     /// # 返回
     /// 成功则返回 `Ok(())`。
@@ -289,12 +333,15 @@ impl MilkyClient {
         &self,
         group_id: i64,
         file_id: String,
-        new_name: String,
+        parent_folder_id: Option<String>,
+        new_file_name: String,
     ) -> Result<()> {
+        let parent_folder_id = parent_folder_id.unwrap_or("/".to_string());
         let params = RenameGroupFileParams {
             group_id,
             file_id,
-            new_name,
+            parent_folder_id,
+            new_file_name,
         };
         self.send_request("rename_group_file", params).await
     }
@@ -337,7 +384,7 @@ impl MilkyClient {
     /// # 参数
     /// * `group_id`: 文件夹所属群组的群号。
     /// * `folder_id`: 要重命名的文件夹的ID。
-    /// * `new_name`: 文件夹的新名称。
+    /// * `new_folder_name`: 文件夹的新名称。
     ///
     /// # 返回
     /// 成功则返回 `Ok(())`。
@@ -345,12 +392,12 @@ impl MilkyClient {
         &self,
         group_id: i64,
         folder_id: String,
-        new_name: String,
+        new_folder_name: String,
     ) -> Result<()> {
         let params = RenameGroupFolderParams {
             group_id,
             folder_id,
-            new_name,
+            new_folder_name,
         };
         self.send_request("rename_group_folder", params).await
     }

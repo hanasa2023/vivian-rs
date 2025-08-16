@@ -34,7 +34,7 @@ pub struct MilkyClient {
     http_client: reqwest::Client,
     /// 与服务端的通信方式
     comm_type: Communication,
-    /// API请求的基础URL，例如 `lhttp://127.0.0.1:8080/api/`。
+    /// API请求的基础URL，例如 `http://127.0.0.1:8080/api/`。
     api_base_url: Url,
     /// WebHook接收事件的URL
     event_wh_url: String,
@@ -79,7 +79,7 @@ impl MilkyClient {
                 api_base_url
                     .set_scheme(scheme)
                     .map_err(|_| MilkyError::UrlParse(url::ParseError::InvalidPort))?;
-                api_base_url.set_path("/api");
+                api_base_url.set_path("api/");
 
                 // 构建事件WebSocket URL
                 let mut event_ws_url = ws_url.clone();
@@ -178,7 +178,7 @@ impl MilkyClient {
                     };
 
                     #[cfg(not(unix))]
-                    let terminate = std::future::pending::<()>(); // Keep it pending on non-Unix
+                    let terminate = std::future::pending::<()>();
 
                     tokio::select! {
                         _ = ctrl_c => {},
