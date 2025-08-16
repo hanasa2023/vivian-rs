@@ -1,6 +1,6 @@
 [package]
 name = "vivian"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 authors = ["hanasaki <hanasakayui2022@gmail.com>"]
 description = "Rust implementation (Vivian) of the Milky protocol"

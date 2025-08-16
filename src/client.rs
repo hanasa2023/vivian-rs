@@ -157,54 +157,6 @@ impl MilkyClient {
                 let ws_stream_clone = Arc::clone(&self.ws_stream);
                 let event_sender_clone = self.event_sender.clone();
                 let ws_shutdown_signal_tx_clone_for_loop = Arc::clone(&self.ws_shutdown_signal_tx);
-                let ws_shutdown_signal_tx_clone_for_os_handler =
-                    Arc::clone(&self.ws_shutdown_signal_tx);
-
-                tokio::spawn(async move {
-                    let ctrl_c = async {
-                        tokio::signal::ctrl_c()
-                            .await
-                            .expect("为 WebSocket 操作系统信号安装 Ctrl+C 处理程序失败");
-                        info!("WebSocket OS 信号处理器：收到 Ctrl+C 信号。");
-                    };
-
-                    #[cfg(unix)]
-                    let terminate = async {
-                        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                            .expect("为 WebSocket 操作系统信号安装 SIGTERM 处理程序失败")
-                            .recv()
-                            .await;
-                        info!("WebSocket OS 信号处理器：收到 SIGTERM 信号。");
-                    };
-
-                    #[cfg(not(unix))]
-                    let terminate = std::future::pending::<()>();
-
-                    tokio::select! {
-                        _ = ctrl_c => {},
-                        _ = terminate => {},
-                    }
-
-                    info!("OS 信号触发 WebSocket 事件读取循环关闭。");
-                    // 尝试发送关闭信号
-                    if let Some(tx) = ws_shutdown_signal_tx_clone_for_os_handler
-                        .lock()
-                        .await
-                        .take()
-                    {
-                        if tx.send(()).is_ok() {
-                            info!("OS 信号处理器已成功发送关闭信号到 WebSocket 事件读取循环。");
-                        } else {
-                            info!(
-                                "OS 信号处理器无法发送关闭信号，WebSocket 事件读取循环可能已经关闭。"
-                            );
-                        }
-                    } else {
-                        info!(
-                            "OS 信号处理器发现没有活动的 WebSocket 关闭信号发送器，可能连接从未完全建立或已被关闭。"
-                        );
-                    }
-                });
 
                 tokio::spawn(async move {
                     info!("WebSocket 事件读取循环已启动。");
@@ -348,6 +300,23 @@ impl MilkyClient {
         };
 
         Ok(())
+    }
+
+    /// 优雅地关闭与服务器的连接。
+    ///
+    /// 目前主要用于主动关闭 WebSocket 事件流连接。
+    /// 它会向事件读取循环发送一个关闭信号。
+    pub async fn shutdown(&self) {
+        info!("正在请求关闭 MilkyClient...");
+        if let Some(tx) = self.ws_shutdown_signal_tx.lock().await.take() {
+            if tx.send(()).is_ok() {
+                info!("已成功发送关闭信号到 WebSocket 事件读取循环。");
+            } else {
+                info!("无法发送关闭信号，WebSocket 事件读取循环可能已经关闭。");
+            }
+        } else {
+            info!("没有活动的 WebSocket 关闭信号发送器，可能连接从未完全建立或已被关闭。");
+        }
     }
 
     /// 处理接收到的单个事件消息。

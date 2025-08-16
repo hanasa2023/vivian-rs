@@ -172,10 +172,13 @@ async fn main() -> Result<()> {
         }
     }
 
-    // 保持主程序运行以处理事件。在实际应用中，您需要更健壮的关闭逻辑。
+    // 保持主程序运行以处理事件。
     info!("示例正在运行。按 Ctrl-C 退出。");
     tokio::signal::ctrl_c().await?; // 等待 Ctrl-C信号
     info!("收到 Ctrl-C，正在关闭...");
+    client.shutdown().await;
+    // 可以选择性地等待一小段时间，以确保关闭消息被处理
+    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
 
     Ok(())
 }
