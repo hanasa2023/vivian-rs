@@ -1172,6 +1172,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
+name = "milky-mock-server"
+version = "0.1.0"
+dependencies = [
+ "better-panic",
+ "cfg-if",
+ "color-eyre",
+ "ratatui",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
+name = "milky-rust-sdk"
+version = "0.3.0"
+dependencies = [
+ "ansi_term",
+ "axum",
+ "chrono",
+ "env_logger 0.11.8",
+ "futures-util",
+ "log",
+ "pretty_env_logger",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1196,18 +1229,6 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "mock-server"
-version = "0.1.0"
-dependencies = [
- "better-panic",
- "cfg-if",
- "color-eyre",
- "ratatui",
- "reqwest",
- "tokio",
 ]
 
 [[package]]
@@ -2279,27 +2300,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "vivian"
-version = "0.3.0"
-dependencies = [
- "ansi_term",
- "axum",
- "chrono",
- "env_logger 0.11.8",
- "futures-util",
- "log",
- "pretty_env_logger",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
- "url",
- "uuid",
-]
 
 [[package]]
 name = "want"
