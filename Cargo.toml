@@ -1,3 +1,15 @@
 [workspace]
 members = ["crates/*"]
 resolver = "3"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+authors = ["hanasaki <hanasakayui2022@gmail.com>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/hanasa2023/vivian-rs"
+repository = "https://github.com/hanasa2023/vivian-rs"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
