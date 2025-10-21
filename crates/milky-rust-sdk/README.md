@@ -1,9 +1,9 @@
-# Vivian SDK
+# MILKY RUST SDK
 
 [![Repository](https://img.shields.io/badge/repository-GitHub-blue.svg)](https://github.com/hanasa2023/vivian-rs)
-[![Latest version](https://img.shields.io/crates/v/vivian.svg)](https://crates.io/crates/vivian)
-[![Documentation](https://docs.rs/vivian/badge.svg)](https://docs.rs/vivian)
-![License](https://img.shields.io/crates/l/vivian.svg)
+[![Latest version](https://img.shields.io/crates/v/milky-rust-sdk.svg)](https://crates.io/crates/milky-rust-sdk)
+[![Documentation](https://docs.rs/milky-rust-sdk/badge.svg)](https://docs.rs/milky-rust-sdk)
+![License](https://img.shields.io/crates/l/milky-rust-sdk.svg)
 
 Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 [Milky](https://milky.ntqqrev.org/)
 后端服务进行交互。它提供了一套便捷的API客户端，用于执行各种操作，
@@ -17,7 +17,6 @@ Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 [Mi
   - **群组管理**: 创建、查询、修改群信息，管理群成员（邀请、踢出、禁言、设置管理员），处理群公告、群文件等。
   - **好友互动**: 发送戳一戳，资料卡点赞。
   - **文件操作**: 上传和下载私聊及群文件，管理群文件和文件夹。
-  - **请求处理**: 同意或拒绝好友请求、加群请求。
   - **系统信息**: 获取登录信息、好友列表、群列表等。
 - **实时事件处理**: 通过 WebSocket 接收服务器推送的各类事件，如新消息、用户加入/退出群组等。
 - **强类型接口**: 所有API请求参数和响应数据都有明确的Rust结构体定义，利用 `serde`进行序列化和反序列化，确保类型安全。
@@ -29,11 +28,11 @@ Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 [Mi
 
 ### 1. 添加依赖
 
-将 `vivian` 添加到您的 `Cargo.toml` 文件中：
+将 `milky-rust-sdk` 添加到您的 `Cargo.toml` 文件中：
 
 ```toml
 [dependencies]
-vivian = "0.3" # 或者使用 git/crates.io 依赖
+milky-rust-sdk = "1" # 或者使用 git/crates.io 依赖
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
 # 其他您项目可能需要的依赖
@@ -54,17 +53,15 @@ fn main() {
 ### 3. 创建和使用 `MilkyClient`
 
 以下是一个基本的使用示例，展示了如何初始化客户端、连接事件流、处理事件以及调用API。
-
 ```rust
 use std::sync::Arc;
 
 use log::{LevelFilter, error, info};
+use milky_rust_sdk::prelude::*;
+use milky_rust_sdk::utils::get_plain_text_from_segments;
+use milky_rust_sdk::{Communication, MilkyClient, Result};
+use milky_rust_sdk::{WebSocketConfig, logger};
 use tokio::sync::mpsc;
-use vivian::types::common::MessageScene;
-use vivian::types::message::get_plain_text_from_segments;
-use vivian::types::message::out_going::{OutgoingSegment, TextData};
-use vivian::{Communication, Event, EventKind, MilkyClient, Result};
-use vivian::{WebSocketConfig, logger};
 
 // 辅助函数，用于创建文本消息段
 fn text_segment(text: &str) -> OutgoingSegment {
@@ -81,7 +78,6 @@ async fn main() -> Result<()> {
     let (event_tx, mut event_rx) = mpsc::channel::<Event>(100);
 
     // 初始化 MilkyClient
-
     // 示例中使用的是WebSocket的通信方式，如果你想通过WebHook方式与服务端通信，可以参考下面的代码
     // let wh_config = WebHookConfig::new(None, 8080, "http://127.0.0.1:3000".to_string(), None);
     // let client = MilkyClient::new(Communication::WebHook(wh_config), event_tx)?;
@@ -89,9 +85,9 @@ async fn main() -> Result<()> {
     let client = MilkyClient::new(Communication::WebSocket(ws_config), event_tx)?;
     let client = Arc::new(client);
 
-    // 连接到事件流
+    // 连接到件流
     if let Err(e) = client.connect_events().await {
-        error!("未能连接到事件流: {:?}", e);
+        error!("未能连接到事件流: {e:?}");
         return Err(e);
     }
     info!("成功连接到 Milky 服务器事件流。");
@@ -101,10 +97,12 @@ async fn main() -> Result<()> {
     let _event_handle = tokio::spawn(async move {
         info!("事件监听器已启动。");
         while let Some(event) = event_rx.recv().await {
-            info!("收到事件: {:?}", event); // 打印原始事件
+            info!("收到事件: {event:?}",); // 打印原始事件
 
             match event.kind {
-                EventKind::MessageReceive(incoming_msg) => {
+                EventKind::MessageReceive {
+                    message: incoming_msg,
+                } => {
                     let plain_text = get_plain_text_from_segments(&incoming_msg.segments);
                     info!(
                         "收到来自 {} 的消息 ({}): {}",
@@ -117,18 +115,21 @@ async fn main() -> Result<()> {
                     if incoming_msg.message_scene == MessageScene::Friend
                         && plain_text.starts_with("/echo")
                     {
-                        let reply_segments = vec![text_segment(plain_text.replace("/echo", "").trim())];
+                        let reply_segments =
+                            vec![text_segment(plain_text.replace("/echo", "").trim())];
                         match client_for_task
                             .send_private_message(incoming_msg.sender_id, reply_segments)
                             .await
                         {
                             Ok(resp) => info!("自动回复成功: seq={}", resp.message_seq),
-                            Err(e) => error!("自动回复失败: {:?}", e),
+                            Err(e) => error!("自动回复失败: {e:?}",),
                         }
                     }
                 }
-                EventKind::GroupMemberIncrease(data) => {
-                    info!("群 {} 新成员加入: {}", data.group_id, data.user_id);
+                EventKind::GroupMemberIncrease {
+                    group_id, user_id, ..
+                } => {
+                    info!("群 {} 新成员加入: {}", group_id, user_id);
                 }
                 // ... 处理其他事件类型
                 _ => {}
@@ -150,7 +151,7 @@ async fn main() -> Result<()> {
             );
         }
         Err(e) => {
-            error!("未能获取登录信息: {:?}", e);
+            error!("未能获取登录信息: {e:?}",);
         }
     }
 
@@ -168,7 +169,7 @@ async fn main() -> Result<()> {
             );
         }
         Err(e) => {
-            error!("未能发送私聊消息至 {}: {:?}", user_id_to_send, e);
+            error!("未能发送私聊消息至 {user_id_to_send}: {e:?}");
         }
     }
 
@@ -182,7 +183,6 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-
 ```
 
 ## 贡献
