@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use log::{LevelFilter, error, info};
-use milky_rust_sdk::types::common::MessageScene;
-use milky_rust_sdk::types::message::get_plain_text_from_segments;
-use milky_rust_sdk::types::message::out_going::{OutgoingSegment, TextData};
-use milky_rust_sdk::{Communication, Event, EventKind, MilkyClient, Result};
+use milky_rust_sdk::prelude::*;
+use milky_rust_sdk::utils::get_plain_text_from_segments;
+use milky_rust_sdk::{Communication, MilkyClient, Result};
 use milky_rust_sdk::{WebSocketConfig, logger};
 use tokio::sync::mpsc;
 
@@ -45,7 +44,9 @@ async fn main() -> Result<()> {
             info!("收到事件: {event:?}",); // 打印原始事件
 
             match event.kind {
-                EventKind::MessageReceive(incoming_msg) => {
+                EventKind::MessageReceive {
+                    message: incoming_msg,
+                } => {
                     let plain_text = get_plain_text_from_segments(&incoming_msg.segments);
                     info!(
                         "收到来自 {} 的消息 ({}): {}",
@@ -69,8 +70,10 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                EventKind::GroupMemberIncrease(data) => {
-                    info!("群 {} 新成员加入: {}", data.group_id, data.user_id);
+                EventKind::GroupMemberIncrease {
+                    group_id, user_id, ..
+                } => {
+                    info!("群 {} 新成员加入: {}", group_id, user_id);
                 }
                 // ... 处理其他事件类型
                 _ => {}

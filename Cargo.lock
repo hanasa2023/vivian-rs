@@ -141,7 +141,7 @@ dependencies = [
  "sha1",
  "sync_wrapper",
  "tokio",
- "tokio-tungstenite 0.28.0",
+ "tokio-tungstenite",
  "tower",
  "tower-layer",
  "tower-service",
@@ -1193,7 +1193,7 @@ dependencies = [
 
 [[package]]
 name = "milky-rust-sdk"
-version = "0.3.0"
+version = "1.0.1"
 dependencies = [
  "ansi_term",
  "axum",
@@ -1201,23 +1201,34 @@ dependencies = [
  "env_logger 0.11.8",
  "futures-util",
  "log",
+ "milky-types 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_env_logger",
  "reqwest",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
- "tokio-tungstenite 0.26.2",
+ "tokio-tungstenite",
  "url",
  "uuid",
 ]
 
 [[package]]
 name = "milky-types"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "serde",
  "serde_json",
+ "serde_test",
+]
+
+[[package]]
+name = "milky-types"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adeaf5783db57af419d50760ee005292c0b064956a43f6ba31b58b081d7f6d64"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -1776,6 +1787,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_test"
+version = "1.0.177"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f901ee573cab6b3060453d2d5f0bae4e6d628c23c0a962ff9b5f1d7c8d4f1ed"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2074,28 +2094,16 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.26.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084"
-dependencies = [
- "futures-util",
- "log",
- "native-tls",
- "tokio",
- "tokio-native-tls",
- "tungstenite 0.26.2",
-]
-
-[[package]]
-name = "tokio-tungstenite"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
+ "native-tls",
  "tokio",
- "tungstenite 0.28.0",
+ "tokio-native-tls",
+ "tungstenite",
 ]
 
 [[package]]
@@ -2207,24 +2215,6 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "tungstenite"
-version = "0.26.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4793cb5e56680ecbb1d843515b23b6de9a75eb04b66643e256a396d43be33c13"
-dependencies = [
- "bytes",
- "data-encoding",
- "http",
- "httparse",
- "log",
- "native-tls",
- "rand",
- "sha1",
- "thiserror",
- "utf-8",
-]
-
-[[package]]
-name = "tungstenite"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
@@ -2234,6 +2224,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
+ "native-tls",
  "rand",
  "sha1",
  "thiserror",

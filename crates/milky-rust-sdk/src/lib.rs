@@ -13,13 +13,17 @@ pub mod client;
 pub mod error;
 pub mod logger;
 pub mod types;
+pub mod utils;
 
 pub use client::MilkyClient;
 pub use error::{MilkyError, Result};
-pub use types::{
-    communication::{Communication, WebHookConfig, WebSocketConfig},
-    event::{Event, EventKind},
-    friend::{Friend, FriendCategory},
-    group::{Group, GroupAnnouncement, GroupFile, GroupFolder, GroupMember},
-    message::{in_coming, out_going},
-};
+pub use types::communication::{Communication, WebHookConfig, WebSocketConfig};
+
+pub mod prelude {
+    pub use milky_types::common::*;
+    pub use milky_types::event::*;
+    pub use milky_types::friend::*;
+    pub use milky_types::group::*;
+    pub use milky_types::message::in_coming::*;
+    pub use milky_types::message::out_going::*;
+}

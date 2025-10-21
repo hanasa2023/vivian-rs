@@ -1,19 +1,19 @@
-//! 定义了 `MilkyClient`，这是与后端服务进行通信的核心客户端。
+//! 定义了 `MilkyClient`，这是与后端服务进行通信的核心客户端
 //!
-//! `MilkyClient` 负责处理HTTP API请求以及通过WebSocket接收事件。
+//! `MilkyClient` 负责处理HTTP API请求以及通过WebSocket接收事件
 //! 它管理连接状态、认证信息，并提供了一系列方法来调用具体的API端点
-//! 和处理从服务器推送的事件。
+//! 和处理从服务器推送的事件
 
 use crate::error::{MilkyError, Result};
 use crate::types::common::ApiResponse;
 use crate::types::communication::Communication;
-use crate::types::event::Event;
 use crate::types::message::OriginalMessage;
 
 use axum::routing::post;
 use axum::{Json, Router};
 use futures_util::{StreamExt, lock::Mutex};
 use log::{debug, error, info, warn};
+use milky_types::event::Event;
 use reqwest::StatusCode;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -25,43 +25,40 @@ use tokio_tungstenite::{
 };
 use url::Url;
 
-/// `MilkyClient` 是与后端服务交互的主要结构体。
-///
-/// 它封装了HTTP客户端、API基础URL、事件WebSocket URL、访问令牌（可选）、
-/// WebSocket流的共享引用以及用于向上层传递事件的发送通道。
+/// 与后端服务交互的主要结构体
 pub struct MilkyClient {
-    /// 用于发送HTTP API请求的 `reqwest` 客户端实例。
+    /// 用于发送HTTP API请求的 `reqwest` 客户端实例
     http_client: reqwest::Client,
     /// 与服务端的通信方式
     comm_type: Communication,
-    /// API请求的基础URL，例如 `http://127.0.0.1:8080/api/`。
+    /// API请求的基础URL，例如 `http://127.0.0.1:8080/api/`
     api_base_url: Url,
     /// WebHook接收事件的URL
     event_wh_url: String,
-    /// 事件WebSocket连接的URL，例如 `ws://127.0.0.1:8080/event`。
+    /// 事件WebSocket连接的URL，例如 `ws://127.0.0.1:8080/event`
     event_ws_url: Option<Url>,
-    /// 可选的访问令牌，用于API请求和WebSocket连接的认证。
+    /// 可选的访问令牌，用于API请求和WebSocket连接的认证
     access_token: Option<String>,
-    /// WebSocket流的可选共享引用。
-    /// 使用 `Arc<Mutex<...>>` 来允许多个任务安全地访问和修改WebSocket流。
-    /// `Option` 表示连接可能尚未建立或已关闭。
+    /// WebSocket流的可选共享引用
+    /// 使用 `Arc<Mutex<...>>` 来允许多个任务安全地访问和修改WebSocket流
+    /// `Option` 表示连接可能尚未建立或已关闭
     ws_stream: Arc<Mutex<Option<WebSocketStream<MaybeTlsStream<TcpStream>>>>>,
     // 用于发送关闭 WebSocket 的信号
     ws_shutdown_signal_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
-    /// 用于将从WebSocket接收到的事件发送到上层处理逻辑的mpsc通道发送端。
+    /// 用于将从WebSocket接收到的事件发送到上层处理逻辑的mpsc通道发送端
     event_sender: mpsc::Sender<Event>,
 }
 
 impl MilkyClient {
-    /// 创建一个新的 `MilkyClient` 实例。
+    /// 创建一个新的 `MilkyClient` 实例
     ///
     /// # 参数
     /// * `comm`: 与服务端的通信方式
-    /// * `event_sender`: 一个mpsc通道的发送端，用于将接收到的事件传递出去。
+    /// * `event_sender`: 一个mpsc通道的发送端，用于将接收到的事件传递出去
     ///
     /// # 返回
-    /// 成功则返回 `Result<Self>`，其中 `Self` 是新创建的 `MilkyClient` 实例。
-    /// 如果URL解析失败或协议不受支持，则返回错误。
+    /// 成功则返回 `Result<Self>`，其中 `Self` 是新创建的 `MilkyClient` 实例
+    /// 如果URL解析失败或协议不受支持，则返回错误
     pub fn new(comm: Communication, event_sender: mpsc::Sender<Event>) -> Result<Self> {
         let _comm = comm.clone();
         match comm {
@@ -126,10 +123,10 @@ impl MilkyClient {
         }
     }
 
-    /// 尝试接收服务端发送的事件。
+    /// 尝试接收服务端发送的事件
     ///
     /// # 返回
-    /// 成功建立连接并启动事件读取循环则返回 `Ok(())`，否则返回错误。
+    /// 成功建立连接并启动事件读取循环则返回 `Ok(())`，否则返回错误
     pub async fn connect_events(&self) -> Result<()> {
         match self.comm_type {
             Communication::WebSocket(_) => {
@@ -159,19 +156,19 @@ impl MilkyClient {
                 let ws_shutdown_signal_tx_clone_for_loop = Arc::clone(&self.ws_shutdown_signal_tx);
 
                 tokio::spawn(async move {
-                    info!("WebSocket 事件读取循环已启动。");
+                    info!("WebSocket 事件读取循环已启动");
                     loop {
                         tokio::select! {
                             biased;
 
                             _ = &mut shutdown_rx => {
-                                info!("WebSocket 事件读取循环收到关闭信号。");
+                                info!("WebSocket 事件读取循环收到关闭信号");
                                 if let Some(mut stream_to_close) = ws_stream_clone.lock().await.take() {
                                     info!("正在发送 WebSocket Close 帧...");
                                     if let Err(e) = stream_to_close.close(None).await {
                                         error!("发送 WebSocket Close 帧时出错: {e:?}");
                                     } else {
-                                        info!("WebSocket Close 帧已发送，连接已关闭。");
+                                        info!("WebSocket Close 帧已发送，连接已关闭");
                                     }
                                 }
                                 break;
@@ -202,7 +199,7 @@ impl MilkyClient {
                                         break; // 退出循环
                                     }
                                     None => { // 服务器关闭连接或流在读取前变为None
-                                        info!("服务器关闭了事件 WebSocket 连接或流已不存在。");
+                                        info!("服务器关闭了事件 WebSocket 连接或流已不存在");
                                         ws_stream_clone.lock().await.take(); // 确保流被移除
                                         break; // 退出循环
                                     }
@@ -210,7 +207,7 @@ impl MilkyClient {
                             }
                         }
                     }
-                    info!("WebSocket 事件读取循环已结束。");
+                    info!("WebSocket 事件读取循环已结束");
                     ws_shutdown_signal_tx_clone_for_loop.lock().await.take();
                 });
             }
@@ -245,7 +242,7 @@ impl MilkyClient {
                 let app = Router::new().route("/webhook", post(axum_webhook_handler));
 
                 tokio::spawn(async move {
-                    info!("尝试在 {webhook_listen_address} 上启动 WebHook 事件接收服务器。",);
+                    info!("尝试在 {webhook_listen_address} 上启动 WebHook 事件接收服务器",);
 
                     let listener =
                         match tokio::net::TcpListener::bind(&webhook_listen_address).await {
@@ -284,7 +281,7 @@ impl MilkyClient {
                             _ = ctrl_c => info!("Ctrl+C信号接收，开始关闭 WebHook 服务器..."),
                             _ = terminate => info!("SIGTERM信号接收，开始关闭 WebHook 服务器..."),
                         }
-                        info!("WebHook 服务器关闭信号已触发。");
+                        info!("WebHook 服务器关闭信号已触发");
                     };
 
                     if let Err(e) = axum::serve(listener, app.into_make_service())
@@ -293,43 +290,40 @@ impl MilkyClient {
                     {
                         error!("WebHook 事件接收服务器遇到错误: {e:?}");
                     }
-                    info!("WebHook 事件接收服务器已关闭。");
+                    info!("WebHook 事件接收服务器已关闭");
                 });
-                info!("WebHook 事件接收服务器已安排在后台运行。");
+                info!("WebHook 事件接收服务器已安排在后台运行");
             }
         };
 
         Ok(())
     }
 
-    /// 优雅地关闭与服务器的连接。
+    /// 关闭与服务器的连接
     ///
-    /// 目前主要用于主动关闭 WebSocket 事件流连接。
-    /// 它会向事件读取循环发送一个关闭信号。
+    /// 目前主要用于主动关闭 WebSocket 事件流连接
+    /// 它会向事件读取循环发送一个关闭信号
     pub async fn shutdown(&self) {
         info!("正在请求关闭 MilkyClient...");
         if let Some(tx) = self.ws_shutdown_signal_tx.lock().await.take() {
             if tx.send(()).is_ok() {
-                info!("已成功发送关闭信号到 WebSocket 事件读取循环。");
+                info!("已成功发送关闭信号到 WebSocket 事件读取循环");
             } else {
-                info!("无法发送关闭信号，WebSocket 事件读取循环可能已经关闭。");
+                info!("无法发送关闭信号，WebSocket 事件读取循环可能已经关闭");
             }
         } else {
-            info!("没有活动的 WebSocket 关闭信号发送器，可能连接从未完全建立或已被关闭。");
+            info!("没有活动的 WebSocket 关闭信号发送器，可能连接从未完全建立或已被关闭");
         }
     }
 
-    /// 处理接收到的单个事件消息。
-    ///
-    /// 此方法会解析消息内容，如果消息是文本类型并且可以成功反序列化为 [`Event`]，
-    /// 则通过 `event_sender` 将事件发送出去。
+    /// 处理接收到的单个事件消息
     ///
     /// # 参数
-    /// * `msg`: 接收到的原始 [`OriginalMessage`]。
-    /// * `event_sender`: 用于发送解析后事件的mpsc通道发送端。
+    /// * `msg`: 接收到的原始 [`OriginalMessage`]
+    /// * `event_sender`: 用于发送解析后事件的mpsc通道发送端
     ///
     /// # 返回
-    /// 成功处理则返回 `Ok(())`，否则返回错误（主要是在发送事件到通道失败时）。
+    /// 成功处理则返回 `Ok(())`，否则返回错误（主要是在发送事件到通道失败时）
     async fn handle_event_message(
         msg: OriginalMessage,
         event_sender: mpsc::Sender<Event>,
@@ -341,28 +335,28 @@ impl MilkyClient {
                     match serde_json::from_str::<Event>(&text) {
                         Ok(event) => {
                             if event_sender.send(event).await.is_err() {
-                                error!("事件接收端已关闭，无法发送事件。");
+                                error!("事件接收端已关闭，无法发送事件");
                             }
                         }
                         Err(e) => {
-                            warn!("无法将消息解析为已知的 Event 类型: {e}。原始文本: {text}");
+                            warn!("无法将消息解析为已知的 Event 类型: {e}原始文本: {text}");
                         }
                     }
                 }
                 WsMessage::Binary(_) => {
-                    info!("在事件流上接收到二进制数据 (未处理)。");
+                    info!("在事件流上接收到二进制数据 (未处理)");
                 }
                 WsMessage::Ping(_) => {
-                    debug!("在事件流上接收到 Ping 帧。");
+                    debug!("在事件流上接收到 Ping 帧");
                 }
                 WsMessage::Pong(_) => {
-                    debug!("在事件流上接收到 Pong 帧。");
+                    debug!("在事件流上接收到 Pong 帧");
                 }
                 WsMessage::Close(close_frame) => {
                     info!("在事件流上接收到 Close 帧: {close_frame:?}",);
                 }
                 WsMessage::Frame(_) => {
-                    debug!("在事件流上接收到原始 Frame (未处理)。");
+                    debug!("在事件流上接收到原始 Frame (未处理)");
                 }
             },
             OriginalMessage::WebHook(wh_msg) => {
@@ -370,11 +364,11 @@ impl MilkyClient {
                 match serde_json::from_value::<Event>(wh_msg) {
                     Ok(event) => {
                         if event_sender.send(event).await.is_err() {
-                            error!("事件接收端已关闭，无法发送事件。");
+                            error!("事件接收端已关闭，无法发送事件");
                         }
                     }
                     Err(e) => {
-                        warn!("无法将消息解析为已知的 Event 类型: {e}。原始文本: {msg:?}");
+                        warn!("无法将消息解析为已知的 Event 类型: {e}原始文本: {msg:?}");
                     }
                 }
             }
@@ -382,23 +376,15 @@ impl MilkyClient {
         Ok(())
     }
 
-    /// 发送一个API请求到后端服务。
-    ///
-    /// 这是一个泛型方法，用于发送POST请求到指定的API `action` 端点。
-    /// 请求参数 `params` 会被序列化为JSON。
-    /// 响应会被尝试反序列化为类型 `R`。
-    ///
-    /// # 类型参数
-    /// * `P`: 请求参数的类型，必须实现 `serde::Serialize`。
-    /// * `R`: 期望的响应数据类型，必须实现 `serde::de::DeserializeOwned`。
+    /// 发送一个API请求到后端服务
     ///
     /// # 参数
-    /// * `action`: API操作的名称，例如 "send_private_msg"。
-    /// * `params`: 要发送的请求参数。
+    /// * `action`: API操作的名称，例如 "send_private_msg"
+    /// * `params`: 要发送的请求参数
     ///
     /// # 返回
-    /// 成功则返回 `Result<R>`，其中 `R` 是反序列化后的响应数据。
-    /// 如果请求失败、服务器返回错误或反序列化失败，则返回错误。
+    /// 成功则返回 `Result<R>`，其中 `R` 是反序列化后的响应数据
+    /// 如果请求失败、服务器返回错误或反序列化失败，则返回错误
     pub async fn send_request<P: Serialize, R: DeserializeOwned>(
         &self,
         action: &str,
