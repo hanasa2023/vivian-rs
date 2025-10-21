@@ -12,7 +12,7 @@ use crate::types::{
 ///
 /// 这是许多具体消息类型（如 [`FriendMessage`], [`GroupMessage`]）的基础，
 /// 包含了消息的共同属性
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct IncomingMessage {
     /// 消息的接收方ID，可以是好友QQ号或群号
     pub peer_id: i64,
@@ -78,179 +78,149 @@ pub struct IncomingForwardMessage {
 }
 
 /// 枚举构成接收消息内容的各种可能的消息段类型
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type", content = "data")]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "snake_case", tag = "type", content = "data")]
 pub enum IncomingSegment {
     /// 文本消息段
-    #[serde(rename = "text")]
-    Text(TextData),
+    Text {
+        /// 实际的文本内容
+        text: String,
+    },
 
     /// 提及（@）某人的消息段
-    #[serde(rename = "mention")]
-    Mention(MentionData),
+    Mention {
+        /// 被提及用户的QQ号
+        user_id: i64,
+    },
 
     /// 提及（@）全体成员的消息段
-    #[serde(rename = "mention_all")]
-    MentionAll(MentionAllData),
+    MentionAll {},
 
     /// QQ表情消息段
-    #[serde(rename = "face")]
-    Face(FaceData),
+    Face {
+        /// QQ表情的内置ID
+        face_id: String,
+    },
 
     /// 回复消息段，用于引用之前的某条消息
-    #[serde(rename = "reply")]
-    Reply(ReplyData),
+    Reply {
+        /// 被回复（引用）的消息的序列号
+        message_seq: i64,
+    },
 
     /// 图片消息段
-    #[serde(rename = "image")]
-    Image(ImageData),
+    Image {
+        /// 图片的资源ID，可用于后续操作（如获取图片URL）
+        resource_id: String,
+        /// 临时URL
+        temp_url: String,
+        /// 图片宽度
+        width: i32,
+        /// 图片高度
+        height: i32,
+        /// 图片的预览文本
+        summary: String,
+        /// 图片的子类型，例如 "normal" (普通图片), "sticker" (贴图表情) 等
+        sub_type: String,
+    },
 
     /// 语音消息段
-    #[serde(rename = "record")]
-    Record(RecordData),
+    Record {
+        /// 语音的资源ID，可用于后续操作
+        resource_id: String,
+        /// 临时URL
+        temp_url: String,
+        /// 语音的时长（单位：秒）
+        duration: i32,
+    },
 
     /// 视频消息段
-    #[serde(rename = "video")]
-    Video(VideoData),
+    Video {
+        /// 视频的资源ID，可用于后续操作
+        resource_id: String,
+        /// 临时URL
+        temp_url: String,
+        /// 视频宽度
+        width: i32,
+        /// 视频高度
+        height: i32,
+        /// 视频时长（单位：秒）
+        duration: i32,
+    },
 
     /// 文件消息段
-    #[serde(rename = "file")]
-    File(FileData),
+    File {
+        /// 文件 ID
+        file_id: String,
+        /// 文件名称
+        file_name: String,
+        /// 文件大小（字节）
+        file_size: i64,
+        /// 文件的 TriSHA1 哈希值，仅在私聊文件中存在
+        #[serde(skip_serializing_if = "Option::is_none")]
+        file_hash: Option<String>,
+    },
 
     /// 合并转发消息段
-    #[serde(rename = "forward")]
-    Forward(ForwardData),
+    Forward {
+        /// 合并转发消息的ID，可用于获取转发消息的具体内容
+        forward_id: String,
+    },
 
     /// 商城表情（大表情）消息段
-    #[serde(rename = "market_face")]
-    MarketFace(MarketFaceData),
+    MarketFace {
+        /// 商城表情的图片URL
+        url: String,
+    },
 
     /// 轻应用（小程序、小游戏卡片等）消息段
-    #[serde(rename = "light_app")]
-    LightApp(LightAppData),
+    LightApp {
+        /// 小程序的名称
+        app_name: String,
+        /// 小程序的JSON数据负载，具体结构由应用本身定义
+        json_payload: String,
+    },
 
     /// XML 卡片消息段
-    #[serde(rename = "xml")]
-    XML(XMLData),
+    XML {
+        /// XML消息的服务ID
+        service_id: i32,
+        /// XML数据的字符串负载
+        xml_payload: String,
+    },
 }
 
-/// 文本消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct TextData {
-    /// 实际的文本内容
-    pub text: String,
-}
+#[cfg(test)]
+mod test {
+    use serde_test::{Token, assert_tokens};
 
-/// 提及（@）某人的消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct MentionData {
-    /// 被提及用户的QQ号
-    pub user_id: i64,
-}
+    use super::*;
 
-/// 提及（@）全体成员的消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct MentionAllData;
+    #[test]
+    fn test_serialize_mention_all() {
+        let segment = IncomingSegment::MentionAll {};
+        println!("{:?}", serde_json::to_string_pretty(&segment).unwrap());
 
-/// QQ表情消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct FaceData {
-    /// QQ表情的内置ID
-    pub face_id: String,
-}
-
-/// 回复消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct ReplyData {
-    /// 被回复（引用）的消息的序列号
-    pub message_seq: i64,
-}
-
-/// 图片消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct ImageData {
-    /// 图片的资源ID，可用于后续操作（如获取图片URL）
-    pub resource_id: String,
-    /// 临时URL
-    pub temp_url: String,
-    /// 图片宽度
-    pub width: i32,
-    /// 图片高度
-    pub height: i32,
-    /// 图片的预览文本
-    pub summary: String,
-    /// 图片的子类型，例如 "normal" (普通图片), "sticker" (贴图表情) 等
-    pub sub_type: String,
-}
-
-/// 语音消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct RecordData {
-    /// 语音的资源ID，可用于后续操作
-    pub resource_id: String,
-    /// 临时URL
-    pub temp_url: String,
-    /// 语音的时长（单位：秒）
-    pub duration: i32,
-}
-
-/// 视频消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct VideoData {
-    /// 视频的资源ID，可用于后续操作
-    pub resource_id: String,
-    /// 临时URL
-    pub temp_url: String,
-    /// 视频宽度
-    pub width: i32,
-    /// 视频高度
-    pub height: i32,
-    /// 视频时长（单位：秒）
-    pub duration: i32,
-}
-
-/// 文件消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct FileData {
-    /// 文件 ID
-    pub file_id: String,
-    /// 文件名称
-    pub file_name: String,
-    /// 文件大小（字节）
-    pub file_size: i64,
-    /// 文件的 TriSHA1 哈希值，仅在私聊文件中存在
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_hash: Option<String>,
-}
-
-/// 合并转发消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct ForwardData {
-    /// 合并转发消息的ID，可用于获取转发消息的具体内容
-    pub forward_id: String,
-}
-
-/// 商城表情（大表情）消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct MarketFaceData {
-    /// 商城表情的图片URL
-    pub url: String,
-}
-
-/// 小程序消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct LightAppData {
-    /// 小程序的名称
-    pub app_name: String,
-    /// 小程序的JSON数据负载，具体结构由应用本身定义
-    pub json_payload: String,
-}
-
-/// XML 卡片消息段的具体数据
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct XMLData {
-    /// XML消息的服务ID
-    pub service_id: i32,
-    /// XML数据的字符串负载
-    pub xml_payload: String,
+        assert_tokens(
+            &segment,
+            &[
+                Token::Struct {
+                    name: "IncomingSegment",
+                    len: 2,
+                },
+                Token::Str("type"),
+                Token::UnitVariant {
+                    name: "IncomingSegment",
+                    variant: "mention_all",
+                },
+                Token::Str("data"),
+                Token::Struct {
+                    name: "mention_all",
+                    len: 0,
+                },
+                Token::StructEnd,
+                Token::StructEnd,
+            ],
+        );
+    }
 }
