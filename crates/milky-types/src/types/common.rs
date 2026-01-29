@@ -65,3 +65,14 @@ pub enum RequestState {
     /// 已忽略
     Ignored,
 }
+
+/// 图片类型枚举
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageSubType {
+    /// 普通图片
+    #[default]
+    Normal,
+    /// 贴图表情
+    Sticker,
+}

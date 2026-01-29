@@ -7,6 +7,7 @@ use crate::{
     types::{common::Sex, message::in_coming::IncomingSegment},
 };
 
+/// 代表一个群组成员的权限等级
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum GroupRole {
@@ -144,6 +145,7 @@ pub struct GroupFolder {
     pub file_count: i32,
 }
 
+/// 群通知
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GroupNotification {
     /// 群号
@@ -157,6 +159,7 @@ pub struct GroupNotification {
     pub notification_kind: GroupNotificationKind,
 }
 
+/// 群通知类型
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case", content = "")]
 pub enum GroupNotificationKind {
