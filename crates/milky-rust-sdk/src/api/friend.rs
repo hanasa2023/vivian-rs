@@ -60,6 +60,13 @@ pub struct RejectFriendRequestRequest {
     pub reason: String,
 }
 
+/// 删除好友的请求参数
+#[derive(Serialize)]
+pub struct DeleteFriendRequest {
+    /// 要删除的好友的QQ号
+    pub user_id: i64,
+}
+
 impl MilkyClient {
     /// 发送好友戳一戳（Nudge）
     ///
@@ -149,5 +156,17 @@ impl MilkyClient {
             reason,
         };
         self.send_request("reject_friend_request", params).await
+    }
+
+    /// 删除好友
+    ///
+    /// # 参数
+    /// * `user_id`: 要删除的好友的QQ号
+    ///
+    /// # 返回
+    /// 成功则返回 `Ok(())`
+    pub async fn delete_friend(&self, user_id: i64) -> Result<()> {
+        let params = DeleteFriendRequest { user_id };
+        self.send_request("delete_friend", params).await
     }
 }

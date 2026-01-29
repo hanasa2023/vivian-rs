@@ -195,6 +195,42 @@ pub struct GetCsrfTokenResponse {
     pub csrf_token: String,
 }
 
+/// 设置头像的请求参数
+#[derive(Serialize)]
+pub struct SetAvatarRequest {
+    /// 头像文件的统一资源标识符 (URI)
+    /// 支持三种格式:
+    /// - `file:///path/to/avatar.jpg` (本地文件路径)
+    /// - `http://example.com/avatar.png` 或 `https://example.com/avatar.png` (网络URL)
+    /// - `base64://<BASE64编码的图片数据>` (Base64编码的图片内容)
+    pub uri: String,
+}
+
+/// 设置昵称的请求参数
+#[derive(Serialize)]
+pub struct SetNicknameRequest {
+    /// 新的昵称
+    pub new_nickname: String,
+}
+
+/// 设置个性签名的请求参数
+#[derive(Serialize)]
+pub struct SetBioRequest {
+    /// 新的个性签名
+    pub new_bio: String,
+}
+
+/// 获取收藏的自定义表情列表的请求参数
+#[derive(Serialize)]
+pub struct GetCustomFaceUrlListRequest {}
+
+/// 获取收藏的自定义表情列表的响应数据
+#[derive(Deserialize, Debug)]
+pub struct GetCustomFaceUrlListResponse {
+    /// 自定义表情列表
+    pub faces: Vec<String>,
+}
+
 impl MilkyClient {
     /// 获取当前登录账号的基本信息
     ///
@@ -340,5 +376,50 @@ impl MilkyClient {
     pub async fn get_csrf_token(&self) -> Result<GetCsrfTokenResponse> {
         let params = GetCsrfTokenRequest {}; // 此API通常无参数
         self.send_request("get_csrf_token", params).await
+    }
+
+    /// 设置用户头像
+    ///
+    /// # 参数
+    /// * `uri`: 头像文件的URI，支持 file://, http(s)://, base64:// 格式
+    ///
+    /// # 返回
+    /// 成功则返回 `Ok(())`
+    pub async fn set_avatar(&self, uri: String) -> Result<()> {
+        let params = SetAvatarRequest { uri };
+        self.send_request("set_avatar", params).await
+    }
+
+    /// 设置用户昵称
+    ///
+    /// # 参数
+    /// * `nickname`: 新的昵称
+    ///
+    /// # 返回
+    /// 成功则返回 `Ok(())`
+    pub async fn set_nickname(&self, new_nickname: String) -> Result<()> {
+        let params = SetNicknameRequest { new_nickname };
+        self.send_request("set_nickname", params).await
+    }
+
+    /// 设置用户个性签名
+    ///
+    /// # 参数
+    /// * `bio`: 新的个性签名
+    ///
+    /// # 返回
+    /// 成功则返回 `Ok(())`
+    pub async fn set_bio(&self, new_bio: String) -> Result<()> {
+        let params = SetBioRequest { new_bio };
+        self.send_request("set_bio", params).await
+    }
+
+    /// 获取收藏的自定义表情列表
+    ///
+    /// # 返回
+    /// 成功则返回包含自定义表情列表的 [`GetCustomFaceUrlListResponse`]
+    pub async fn get_custom_face_url_list(&self) -> Result<GetCustomFaceUrlListResponse> {
+        let params = GetCustomFaceUrlListRequest {};
+        self.send_request("get_custom_face_url_list", params).await
     }
 }

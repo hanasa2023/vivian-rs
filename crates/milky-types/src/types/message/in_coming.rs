@@ -1,7 +1,7 @@
 //! 定义了接收到的各类消息（如私聊、群聊、临时会话消息）及其组成部分（消息段）的数据结构
 
 use serde::{Deserialize, Serialize};
-
+use crate::common::ImageSubType;
 use crate::types::{
     common::MessageScene,
     friend::Friend,
@@ -100,6 +100,9 @@ pub enum IncomingSegment {
     Face {
         /// QQ表情的内置ID
         face_id: String,
+        /// 是否为超级表情（大表情）
+        #[serde(default)]
+        is_large: bool,
     },
 
     /// 回复消息段，用于引用之前的某条消息
@@ -121,7 +124,7 @@ pub enum IncomingSegment {
         /// 图片的预览文本
         summary: String,
         /// 图片的子类型，例如 "normal" (普通图片), "sticker" (贴图表情) 等
-        sub_type: String,
+        sub_type: ImageSubType,
     },
 
     /// 语音消息段
@@ -165,12 +168,26 @@ pub enum IncomingSegment {
     Forward {
         /// 合并转发消息的ID，可用于获取转发消息的具体内容
         forward_id: String,
+        /// 转发消息的标题
+        title: String,
+        /// 转发消息的预览内容
+        preview: Vec<String>,
+        /// 转发消息的摘要
+        summary: String,
     },
 
     /// 商城表情（大表情）消息段
     MarketFace {
         /// 商城表情的图片URL
         url: String,
+        /// 表情包ID
+        emoji_package_id: i32,
+        /// 表情ID
+        emoji_id: String,
+        /// 表情key
+        key: String,
+        /// 表情描述
+        summary: String,
     },
 
     /// 轻应用（小程序、小游戏卡片等）消息段

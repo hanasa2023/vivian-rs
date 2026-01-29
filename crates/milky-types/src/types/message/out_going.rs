@@ -1,6 +1,7 @@
 //! 定义了用于发送消息的各类数据结构，包括消息段和特定的消息格式（如合并转发）
 
 use serde::{Deserialize, Serialize};
+use crate::common::ImageSubType;
 
 /// 代表一条待发送的合并转发消息中的单条消息内容
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -77,6 +78,9 @@ pub struct MentionAllData;
 pub struct FaceData {
     /// QQ表情的内置ID
     pub face_id: String,
+    /// 是否为超级表情（大表情）
+    #[serde(default)]
+    pub is_large: bool,
 }
 
 /// 待发送的回复消息段的具体数据
@@ -95,12 +99,12 @@ pub struct ImageData {
     /// - `http://example.com/image.png` 或 `https://example.com/image.png` (网络URL)
     /// - `base64://<BASE64编码的图片数据>` (Base64编码的图片内容)
     pub uri: String,
+    /// 图片类型
+    #[serde(default)]
+    pub sub_type: ImageSubType,
     /// 图片的预览文本（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
-    /// 图片类型
-    /// 可能的值包括: "normal" (普通图片), "sticker" (贴图表情) 等
-    pub sub_type: String,
 }
 
 /// 待发送的语音消息段的具体数据

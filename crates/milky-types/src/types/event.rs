@@ -138,9 +138,11 @@ pub enum EventKind {
         user_id: i64,
         /// 如果用户被设置为管理员，则为true；如果其管理员状态被撤销，则为false
         is_set: bool,
+        /// 执行操作的用户QQ号
+        operator_id: i64,
     },
 
-    /// 当群消息被标记或取消标记为“精华”消息时触发的事件
+    /// 当群消息被标记或取消标记为"精华"消息时触发的事件
     GroupEssenceMessageChange {
         /// 精华消息状态发生变更的群组ID
         group_id: i64,
@@ -148,6 +150,8 @@ pub enum EventKind {
         message_seq: i64,
         /// 如果消息被设置为精华消息，则为true；如果被取消设置，则为false
         is_set: bool,
+        /// 执行操作的用户QQ号
+        operator_id: i64,
     },
 
     /// 当新成员加入群组时触发的事件
