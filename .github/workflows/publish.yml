@@ -28,17 +28,27 @@ jobs:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO }}
         run: echo "$CRATES_IO_TOKEN" | cargo login
 
-      - name: Package for crates.io
-        run: cargo package -p milky-types
+      - name: Check if milky-types is already published
+        id: check_types
+        run: |
+          if cargo search milky-types | grep -q "^milky-types.*\"1.0.3\""; then
+            echo "already_published=true" >> $GITHUB_OUTPUT
+            echo "milky-types v1.0.3 is already published"
+          else
+            echo "already_published=false" >> $GITHUB_OUTPUT
+            echo "milky-types v1.0.3 is not published yet"
+          fi
 
-      - name: Publish milky-types
-        run: cargo publish -p milky-types
+      - name: Package and publish milky-types
+        if: steps.check_types.outputs.already_published != 'true'
+        run: |
+          cargo package -p milky-types
+          cargo publish -p milky-types
 
-      - name: Package for crates.io
-        run: cargo package -p milky-rust-sdk
-
-      - name: Publish milky-rust-sdk
-        run: cargo publish -p milky-rust-sdk
+      - name: Package and publish milky-rust-sdk
+        run: |
+          cargo package -p milky-rust-sdk
+          cargo publish -p milky-rust-sdk
 
       - name: Changelog
         uses: Bullrich/generate-release-changelog@master
