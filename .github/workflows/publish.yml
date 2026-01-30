@@ -17,10 +17,10 @@ jobs:
           fetch-depth: 0
 
       - name: Build binaries in release mode
-        run: cargo build --release
+        run: cargo build --release -p milky-types -p milky-rust-sdk
 
       - name: Run tests in release mode
-        run: cargo test --release
+        run: cargo test --release -p milky-types -p milky-rust-sdk
 
       - name: Login into crates.io
         env:
@@ -28,10 +28,16 @@ jobs:
         run: echo "$CRATES_IO_TOKEN" | cargo login
 
       - name: Package for crates.io
-        run: cargo package
+        run: cargo package -p milky-types
 
-      - name: Publish to crates.io
-        run: cargo publish
+      - name: Publish milky-types
+        run: cargo publish -p milky-types
+
+      - name: Package for crates.io
+        run: cargo package -p milky-rust-sdk
+
+      - name: Publish milky-rust-sdk
+        run: cargo publish -p milky-rust-sdk
 
       - name: Changelog
         uses: Bullrich/generate-release-changelog@master
