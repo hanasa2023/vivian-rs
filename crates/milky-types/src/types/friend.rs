@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{common::RequestState, types::common::Sex};
 
 /// 代表一个好友的基本信息
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct Friend {
     /// 好友的QQ号
     pub user_id: i64,
@@ -23,7 +23,7 @@ pub struct Friend {
 }
 
 /// 代表一个好友分组的信息
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct FriendCategory {
     /// 好友分组的唯一ID
     pub category_id: i32,

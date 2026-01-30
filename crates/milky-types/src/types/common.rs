@@ -30,7 +30,7 @@ pub enum Platform {
     Watch,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Sex {
     Male,
@@ -39,7 +39,7 @@ pub enum Sex {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum MessageScene {
     /// 好友消息场景

@@ -7,7 +7,7 @@ use crate::{
     types::{common::Sex, message::in_coming::IncomingSegment},
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum GroupRole {
     Owner,
@@ -17,7 +17,7 @@ pub enum GroupRole {
 }
 
 /// 代表一个群组的基本信息
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct Group {
     /// 群号
     pub group_id: i64,
@@ -30,7 +30,7 @@ pub struct Group {
 }
 
 /// 代表一个群组成员的详细信息
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct GroupMember {
     /// 用户QQ号
     pub user_id: i64,

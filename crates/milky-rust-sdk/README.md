@@ -19,6 +19,7 @@ Vivian 是一个使用 Rust 编写的软件开发工具包 (SDK)，用于与 [Mi
   - **文件操作**: 上传和下载私聊及群文件，管理群文件和文件夹。
   - **系统信息**: 获取登录信息、好友列表、群列表等。
 - **实时事件处理**: 通过 WebSocket 接收服务器推送的各类事件，如新消息、用户加入/退出群组等。
+- **完整元信息支持**: 消息事件保留完整的上下文信息，包括好友详情、群组信息和群成员信息。
 - **强类型接口**: 所有API请求参数和响应数据都有明确的Rust结构体定义，利用 `serde`进行序列化和反序列化，确保类型安全。
 - **自定义日志**: 内置可定制的日志记录器 ()，支持彩色输出和级别过滤。
 - **错误处理**: 定义了详细的错误类型 `MilkyError` (`error.rs`) 和统一的 `Result<T>`，方便错误处理。
@@ -53,6 +54,7 @@ fn main() {
 ### 3. 创建和使用 `MilkyClient`
 
 以下是一个基本的使用示例，展示了如何初始化客户端、连接事件流、处理事件以及调用API。
+
 ```rust
 use std::sync::Arc;
 
@@ -101,28 +103,49 @@ async fn main() -> Result<()> {
 
             match event.kind {
                 EventKind::MessageReceive {
-                    message: incoming_msg,
+                    message: message_event,
                 } => {
-                    let plain_text = get_plain_text_from_segments(&incoming_msg.segments);
-                    info!(
-                        "收到来自 {} 的消息 ({}): {}",
-                        incoming_msg.sender_id,
-                        serde_json::to_string(&incoming_msg.message_scene).unwrap(),
-                        plain_text
-                    );
+                    // 根据 MessageEvent 类型进行模式匹配，访问完整的元信息
+                    match message_event {
+                        MessageEvent::Friend(friend_msg) => {
+                            let plain_text = get_plain_text_from_segments(&friend_msg.message.segments);
+                            info!(
+                                "收到好友消息: {} (备注: {}) - {}",
+                                friend_msg.friend.nickname,
+                                friend_msg.friend.remark,
+                                plain_text
+                            );
 
-                    // 示例：复读
-                    if incoming_msg.message_scene == MessageScene::Friend
-                        && plain_text.starts_with("/echo")
-                    {
-                        let reply_segments =
-                            vec![text_segment(plain_text.replace("/echo", "").trim())];
-                        match client_for_task
-                            .send_private_message(incoming_msg.sender_id, reply_segments)
-                            .await
-                        {
-                            Ok(resp) => info!("自动回复成功: seq={}", resp.message_seq),
-                            Err(e) => error!("自动回复失败: {e:?}",),
+                            // 示例：复读
+                            if plain_text.starts_with("/echo") {
+                                let reply_segments =
+                                    vec![text_segment(plain_text.replace("/echo", "").trim())];
+                                match client_for_task
+                                    .send_private_message(friend_msg.message.sender_id, reply_segments)
+                                    .await
+                                {
+                                    Ok(resp) => info!("自动回复成功: seq={}", resp.message_seq),
+                                    Err(e) => error!("自动回复失败: {e:?}",),
+                                }
+                            }
+                        }
+                        MessageEvent::Group(group_msg) => {
+                            let plain_text = get_plain_text_from_segments(&group_msg.message.segments);
+                            info!(
+                                "收到群消息: [{}] {} (群名片: {}) - {}",
+                                group_msg.group.group_name,
+                                group_msg.group_member.nickname,
+                                group_msg.group_member.card,
+                                plain_text
+                            );
+                        }
+                        MessageEvent::Temp(temp_msg) => {
+                            let plain_text = get_plain_text_from_segments(&temp_msg.message.segments);
+                            info!(
+                                "收到临时消息: QQ: {} - {}",
+                                temp_msg.message.sender_id,
+                                plain_text
+                            );
                         }
                     }
                 }

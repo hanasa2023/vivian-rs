@@ -1,7 +1,10 @@
 //! 定义了从通信平台接收到的事件结构
 
-use crate::types::{common::MessageScene, message::in_coming::IncomingMessage};
-use serde::{Deserialize, Serialize};
+use crate::types::{
+    common::MessageScene,
+    message::in_coming::{FriendMessage, GroupMessage, IncomingMessage, TempMessage},
+};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// 代表从平台接收到的通用事件
 ///
@@ -31,7 +34,7 @@ pub enum EventKind {
     /// 当接收到消息时触发的事件
     MessageReceive {
         #[serde(flatten)]
-        message: IncomingMessage,
+        message: MessageEvent,
     },
 
     /// 当消息被撤回时触发的事件
@@ -89,7 +92,7 @@ pub enum EventKind {
     },
 
     /// 当机器人被邀请加入群组时触发的事件
-    GroupInvitationRequest {
+    GroupInvitation {
         /// 群号
         group_id: i64,
         /// 邀请序列号
@@ -134,8 +137,10 @@ pub enum EventKind {
     GroupAdminChange {
         /// 管理员状态发生变更的群组ID
         group_id: i64,
-        /// 管理员状态发生变更的用户的QQ号
+        /// 发生变更的用户QQ号
         user_id: i64,
+        /// 操作者 QQ 号
+        operator_id: i64,
         /// 如果用户被设置为管理员，则为true；如果其管理员状态被撤销，则为false
         is_set: bool,
     },
@@ -252,62 +257,311 @@ pub enum EventKind {
     },
 }
 
+/// 消息事件的包装类型，根据 message_scene 字段自动反序列化为具体的消息类型
+///
+/// 使用自定义序列化/反序列化逻辑根据 message_scene 字段选择具体的消息结构，
+/// 保留额外的元信息
+#[derive(Debug, Clone, PartialEq)]
+pub enum MessageEvent {
+    /// 好友消息，包含好友的详细信息
+    Friend(FriendMessage),
+    /// 群消息，包含群和群成员的详细信息
+    Group(GroupMessage),
+    /// 临时会话消息，可能包含来源群组信息
+    Temp(TempMessage),
+}
+
+impl MessageEvent {
+    /// 获取消息场景
+    pub fn message_scene(&self) -> MessageScene {
+        match self {
+            MessageEvent::Friend(msg) => msg.message.message_scene,
+            MessageEvent::Group(msg) => msg.message.message_scene,
+            MessageEvent::Temp(msg) => msg.message.message_scene,
+        }
+    }
+
+    /// 获取基础消息信息
+    pub fn base_message(&self) -> &IncomingMessage {
+        match self {
+            MessageEvent::Friend(msg) => &msg.message,
+            MessageEvent::Group(msg) => &msg.message,
+            MessageEvent::Temp(msg) => &msg.message,
+        }
+    }
+}
+
+impl Serialize for MessageEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            MessageEvent::Friend(msg) => msg.serialize(serializer),
+            MessageEvent::Group(msg) => msg.serialize(serializer),
+            MessageEvent::Temp(msg) => msg.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageEvent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let value = serde_json::Value::deserialize(deserializer)?;
+
+        let message_scene = value
+            .get("message_scene")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+
+        match message_scene {
+            "friend" => {
+                let msg: FriendMessage = serde_json::from_value(value)
+                    .map_err(|_| D::Error::custom("无法反序列化为好友消息"))?;
+                Ok(MessageEvent::Friend(msg))
+            }
+            "group" => {
+                let msg: GroupMessage = serde_json::from_value(value)
+                    .map_err(|_| D::Error::custom("无法反序列化为群消息"))?;
+                Ok(MessageEvent::Group(msg))
+            }
+            "temp" => {
+                let msg: TempMessage = serde_json::from_value(value)
+                    .map_err(|_| D::Error::custom("无法反序列化为临时消息"))?;
+                Ok(MessageEvent::Temp(msg))
+            }
+            scene => Err(D::Error::custom(format!("未知的消息场景: {}", scene))),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_test::{Token, assert_tokens};
+    use crate::types::{
+        common::Sex,
+        friend::Friend,
+        group::{Group, GroupMember, GroupRole},
+    };
 
     #[test]
-    fn test_serialize_message_receive_event() {
+    fn test_serialize_and_deserialize_friend_message() {
         let event = Event {
             self_id: 1234567890,
             time: 1630483200,
             kind: EventKind::MessageReceive {
-                message: IncomingMessage {
-                    peer_id: 987654321,
-                    message_seq: 12345,
-                    sender_id: 987654321,
-                    time: 1630483200,
-                    segments: vec![],
-                    message_scene: MessageScene::Friend,
-                },
+                message: MessageEvent::Friend(FriendMessage {
+                    message: IncomingMessage {
+                        peer_id: 987654321,
+                        message_seq: 12345,
+                        sender_id: 987654321,
+                        time: 1630483200,
+                        segments: vec![],
+                        message_scene: MessageScene::Friend,
+                    },
+                    friend: Friend {
+                        user_id: 987654321,
+                        nickname: "测试好友".to_string(),
+                        sex: Sex::Male,
+                        qid: "".to_string(),
+                        remark: "".to_string(),
+                        category: None,
+                    },
+                }),
             },
         };
 
-        assert_tokens(
-            &event,
-            &[
-                Token::Map { len: None },
-                Token::Str("time"),
-                Token::I64(1630483200),
-                Token::Str("self_id"),
-                Token::I64(1234567890),
-                Token::Str("event_type"),
-                Token::UnitVariant {
-                    name: "EventKind",
-                    variant: "message_receive",
+        // 验证序列化
+        let json = serde_json::to_string_pretty(&event).unwrap();
+        println!("好友消息 JSON:\n{}", json);
+
+        // 验证反序列化
+        let deserialized: Event = serde_json::from_str(&json).unwrap();
+        match &deserialized.kind {
+            EventKind::MessageReceive {
+                message: MessageEvent::Friend(msg),
+            } => {
+                assert_eq!(msg.message.message_scene, MessageScene::Friend);
+                assert_eq!(msg.friend.nickname, "测试好友");
+            }
+            _ => panic!("反序列化结果应该是好友消息"),
+        }
+    }
+
+    #[test]
+    fn test_serialize_and_deserialize_group_message() {
+        let event = Event {
+            self_id: 1234567890,
+            time: 1630483200,
+            kind: EventKind::MessageReceive {
+                message: MessageEvent::Group(GroupMessage {
+                    message: IncomingMessage {
+                        peer_id: 123456,
+                        message_seq: 12345,
+                        sender_id: 987654321,
+                        time: 1630483200,
+                        segments: vec![],
+                        message_scene: MessageScene::Group,
+                    },
+                    group: Group {
+                        group_id: 123456,
+                        group_name: "测试群".to_string(),
+                        member_count: 100,
+                        max_member_count: 500,
+                    },
+                    group_member: GroupMember {
+                        user_id: 987654321,
+                        nickname: "测试成员".to_string(),
+                        sex: Sex::Female,
+                        group_id: 123456,
+                        card: "".to_string(),
+                        title: "".to_string(),
+                        level: 1,
+                        role: GroupRole::Member,
+                        join_time: 1630000000,
+                        last_sent_time: 1630483200,
+                        shut_up_end_time: None,
+                    },
+                }),
+            },
+        };
+
+        // 验证序列化
+        let json = serde_json::to_string_pretty(&event).unwrap();
+        println!("群消息 JSON:\n{}", json);
+
+        // 验证反序列化
+        let deserialized: Event = serde_json::from_str(&json).unwrap();
+        match &deserialized.kind {
+            EventKind::MessageReceive {
+                message: MessageEvent::Group(msg),
+            } => {
+                assert_eq!(msg.message.message_scene, MessageScene::Group);
+                assert_eq!(msg.group.group_name, "测试群");
+                assert_eq!(msg.group_member.nickname, "测试成员");
+            }
+            _ => panic!("反序列化结果应该是群消息"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_message_with_meta() {
+        // 测试带有完整元信息的群消息 JSON
+        let json = r#"{
+            "time": 1630483200,
+            "self_id": 1234567890,
+            "event_type": "message_receive",
+            "data": {
+                "peer_id": 123456,
+                "message_seq": 12345,
+                "sender_id": 987654321,
+                "time": 1630483200,
+                "segments": [],
+                "message_scene": "group",
+                "group": {
+                    "group_id": 123456,
+                    "group_name": "测试群",
+                    "member_count": 100,
+                    "max_member_count": 500
                 },
-                Token::Str("data"),
-                Token::Map { len: None },
-                Token::Str("peer_id"),
-                Token::I64(987654321),
-                Token::Str("message_seq"),
-                Token::I64(12345),
-                Token::Str("sender_id"),
-                Token::I64(987654321),
-                Token::Str("time"),
-                Token::I64(1630483200),
-                Token::Str("segments"),
-                Token::Seq { len: Some(0) },
-                Token::SeqEnd,
-                Token::Str("message_scene"),
-                Token::UnitVariant {
-                    name: "MessageScene",
-                    variant: "friend",
-                },
-                Token::MapEnd,
-                Token::MapEnd,
-            ],
-        );
+                "group_member": {
+                    "user_id": 987654321,
+                    "nickname": "测试成员",
+                    "sex": "female",
+                    "group_id": 123456,
+                    "card": "",
+                    "title": "",
+                    "level": 1,
+                    "role": "member",
+                    "join_time": 1630000000,
+                    "last_sent_time": 1630483200
+                }
+            }
+        }"#;
+
+        let event: Event = serde_json::from_str(json).unwrap();
+        match &event.kind {
+            EventKind::MessageReceive {
+                message: MessageEvent::Group(msg),
+            } => {
+                assert_eq!(msg.message.message_scene, MessageScene::Group);
+                assert_eq!(msg.group.group_name, "测试群");
+                assert_eq!(msg.group_member.nickname, "测试成员");
+            }
+            _ => panic!("反序列化结果应该是群消息"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_temp_message() {
+        // 测试临时会话消息 JSON
+        let json = r#"{
+            "time": 1630483200,
+            "self_id": 1234567890,
+            "event_type": "message_receive",
+            "data": {
+                "peer_id": 987654321,
+                "message_seq": 12345,
+                "sender_id": 987654321,
+                "time": 1630483200,
+                "segments": [],
+                "message_scene": "temp",
+                "group": {
+                    "group_id": 123456,
+                    "group_name": "来源群",
+                    "member_count": 50,
+                    "max_member_count": 200
+                }
+            }
+        }"#;
+
+        let event: Event = serde_json::from_str(json).unwrap();
+        match &event.kind {
+            EventKind::MessageReceive {
+                message: MessageEvent::Temp(msg),
+            } => {
+                assert_eq!(msg.message.message_scene, MessageScene::Temp);
+                assert!(msg.group.is_some());
+                assert_eq!(msg.group.as_ref().unwrap().group_name, "来源群");
+            }
+            _ => panic!("反序列化结果应该是临时消息"),
+        }
+    }
+
+    #[test]
+    fn test_message_event_helper_methods() {
+        let friend_msg = MessageEvent::Friend(FriendMessage {
+            message: IncomingMessage {
+                peer_id: 123,
+                message_seq: 1,
+                sender_id: 123,
+                time: 0,
+                segments: vec![],
+                message_scene: MessageScene::Friend,
+            },
+            friend: Friend::default(),
+        });
+
+        assert_eq!(friend_msg.message_scene(), MessageScene::Friend);
+        assert_eq!(friend_msg.base_message().peer_id, 123);
+
+        let group_msg = MessageEvent::Group(GroupMessage {
+            message: IncomingMessage {
+                peer_id: 456,
+                message_seq: 2,
+                sender_id: 789,
+                time: 0,
+                segments: vec![],
+                message_scene: MessageScene::Group,
+            },
+            group: Group::default(),
+            group_member: GroupMember::default(),
+        });
+
+        assert_eq!(group_msg.message_scene(), MessageScene::Group);
+        assert_eq!(group_msg.base_message().sender_id, 789);
     }
 }

@@ -13,7 +13,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use futures_util::{StreamExt, lock::Mutex};
 use log::{debug, error, info, warn};
-use milky_types::event::Event;
+use milky_types::Event;
 use reqwest::StatusCode;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;

@@ -21,7 +21,7 @@ pub use types::communication::{Communication, WebHookConfig, WebSocketConfig};
 
 pub mod prelude {
     pub use milky_types::common::*;
-    pub use milky_types::event::*;
+    pub use milky_types::{Event, EventKind, MessageEvent};
     pub use milky_types::friend::*;
     pub use milky_types::group::*;
     pub use milky_types::message::in_coming::*;

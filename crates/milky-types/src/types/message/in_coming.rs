@@ -31,7 +31,7 @@ pub struct IncomingMessage {
 /// 代表接收到的好友消息
 ///
 /// 继承自 [`IncomingMessage`] 并额外包含了好友的详细信息
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct FriendMessage {
     #[serde(flatten)]
     pub message: IncomingMessage,
@@ -42,7 +42,7 @@ pub struct FriendMessage {
 /// 代表接收到的群消息
 ///
 /// 继承自 [`IncomingMessage`] 并额外包含了群及发送成员的详细信息
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct GroupMessage {
     #[serde(flatten)]
     pub message: IncomingMessage,
@@ -55,7 +55,7 @@ pub struct GroupMessage {
 /// 代表接收到的临时会话消息
 ///
 /// 继承自 [`IncomingMessage`] 并可能包含临时会话来源群组的信息
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct TempMessage {
     #[serde(flatten)]
     pub message: IncomingMessage,

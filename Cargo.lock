@@ -1193,7 +1193,7 @@ dependencies = [
 
 [[package]]
 name = "milky-rust-sdk"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "ansi_term",
  "axum",
@@ -1201,7 +1201,7 @@ dependencies = [
  "env_logger 0.11.8",
  "futures-util",
  "log",
- "milky-types 1.0.1",
+ "milky-types",
  "pretty_env_logger",
  "reqwest",
  "serde",
@@ -1215,16 +1215,7 @@ dependencies = [
 
 [[package]]
 name = "milky-types"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adeaf5783db57af419d50760ee005292c0b064956a43f6ba31b58b081d7f6d64"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "milky-types"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "serde",
  "serde_json",

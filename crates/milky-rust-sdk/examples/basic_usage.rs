@@ -45,28 +45,48 @@ async fn main() -> Result<()> {
 
             match event.kind {
                 EventKind::MessageReceive {
-                    message: incoming_msg,
+                    message: message_event,
                 } => {
-                    let plain_text = get_plain_text_from_segments(&incoming_msg.segments);
-                    info!(
-                        "收到来自 {} 的消息 ({}): {}",
-                        incoming_msg.sender_id,
-                        serde_json::to_string(&incoming_msg.message_scene).unwrap(),
-                        plain_text
-                    );
+                    match message_event {
+                        MessageEvent::Friend(friend_msg) => {
+                            let plain_text = get_plain_text_from_segments(&friend_msg.message.segments);
+                            info!(
+                                "收到好友消息: {} (QQ: {}) - {}",
+                                friend_msg.friend.remark,
+                                friend_msg.message.sender_id,
+                                plain_text
+                            );
 
-                    // 示例：复读
-                    if incoming_msg.message_scene == MessageScene::Friend
-                        && plain_text.starts_with("/echo")
-                    {
-                        let reply_segments =
-                            vec![text_segment(plain_text.replace("/echo", "").trim())];
-                        match client_for_task
-                            .send_private_message(incoming_msg.sender_id, reply_segments)
-                            .await
-                        {
-                            Ok(resp) => info!("自动回复成功: seq={}", resp.message_seq),
-                            Err(e) => error!("自动回复失败: {e:?}",),
+                            // 示例：复读
+                            if plain_text.starts_with("/echo") {
+                                let reply_segments =
+                                    vec![text_segment(plain_text.replace("/echo", "").trim())];
+                                match client_for_task
+                                    .send_private_message(friend_msg.message.sender_id, reply_segments)
+                                    .await
+                                {
+                                    Ok(resp) => info!("自动回复成功: seq={}", resp.message_seq),
+                                    Err(e) => error!("自动回复失败: {e:?}",),
+                                }
+                            }
+                        }
+                        MessageEvent::Group(group_msg) => {
+                            let plain_text = get_plain_text_from_segments(&group_msg.message.segments);
+                            info!(
+                                "收到群消息: [{}] {} (QQ: {}) - {}",
+                                group_msg.group.group_name,
+                                group_msg.group_member.card,
+                                group_msg.message.sender_id,
+                                plain_text
+                            );
+                        }
+                        MessageEvent::Temp(temp_msg) => {
+                            let plain_text = get_plain_text_from_segments(&temp_msg.message.segments);
+                            info!(
+                                "收到临时消息: QQ: {} - {}",
+                                temp_msg.message.sender_id,
+                                plain_text
+                            );
                         }
                     }
                 }

@@ -19,7 +19,7 @@ repository.workspace = true
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-milky-types = { version = "1" }
+milky-types = { path = "../milky-types" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 futures-util = "0.3"
