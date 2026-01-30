@@ -11,6 +11,7 @@ cfg-if = "1.0.4"
 color-eyre = "0.6.5"
 eyre = "0.6.12"
 futures-util = "0.3.31"
+human-panic = "2"
 ratatui = "0.29.0"
 reqwest = "0.12.24"
 serde = { version = "1.0.228", features = ["derive"] }
