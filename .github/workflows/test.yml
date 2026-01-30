@@ -3,8 +3,8 @@ name: test
 on:
   push:
     branches: ["master"]
-  pull_request:
-    branches: ["master"]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,5 +15,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test -p milky-types -p milky-rust-sdk --verbose
